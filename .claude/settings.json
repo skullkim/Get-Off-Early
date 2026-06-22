@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node --version)",
+      "Bash(git --version)",
+      "Bash(node knowledge/generate.mjs)"
+    ]
+  }
+}

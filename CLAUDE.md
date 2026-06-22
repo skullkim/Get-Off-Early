@@ -1,0 +1,36 @@
+# get-off-early
+
+## 하네스: 가상 개발팀 (Virtual Dev Company)
+
+**목표:** 사용자가 요구사항만 주면 PM·디자이너·백엔드(시니어/주니어)·프론트엔드(시니어/주니어)·QA로 구성된 가상 팀이 요구사항 → 디자인 → TDD 개발 → QA 검증 루프를 거쳐 프로젝트를 빠짐없이 구현한다.
+
+**트리거:** 프로젝트/앱/기능을 만들거나 요구사항을 구현하는 요청("이거 만들어줘", "개발해줘", "요구사항 구현", "팀으로 만들어줘"), 또는 후속 작업("다시 실행", "수정", "보완", "기능 추가", "QA 다시", "버그 고쳐") 시 `build-project` 스킬을 사용하라. 단순 단발 질문이나 한 줄 수정은 직접 응답 가능.
+
+**핵심 규율 (워크플로우가 의존하는 불변식):**
+- 개발은 무조건 요구사항(REQ-ID) 기반 **TDD** — 실패 테스트 먼저, 그다음 구현
+- **TDD 게이트**: 모든 in-scope REQ가 테스트로 100% 커버 + 전체 테스트 100% 통과해야만 QA로 인계 (`_workspace/04_coverage_matrix.md`로 추적)
+- QA는 "경계면 교차 검증"(API 응답↔프론트 훅, 라우팅, 상태전이)을 최우선으로, 모듈 완성 직후 점진적으로 검증
+- QA 루프는 통과할 때까지 반복하되, 진전 없는 반복은 사용자에게 에스컬레이션
+- 기술 스택은 고정이 아니라 매 프로젝트 요구사항 기반 런타임 결정
+
+**자가 발전 (회고 루프):** 이 하네스는 매 빌드 후 스스로 진화한다. `build-project`의 마지막 필수 단계(Phase 7)에서 `retrospective` 스킬이 **이번 대화 + 산출물(반복 버그·커버리지 누락·QA 라운드 수)**에서 신호를 캐내어, 사용자 승인 후 에이전트/스킬/오케스트레이터를 개선한다. 절차적 개선은 하네스 파일에, 사용자 취향·반복 피드백은 글로벌 메모리에 저장한다(이중 저장). 진화 궤적은 `.claude/retro/log.md`와 아래 변경 이력에 누적된다. 회고는 대화 맥락을 가진 리더가 직접 수행하며(서브에이전트 금지), 평소에도 "회고해줘 / 하네스 발전시켜줘"로 수동 호출 가능하다.
+
+**변경 이력:**
+| 날짜 | 변경 내용 | 대상 | 사유 |
+|------|----------|------|------|
+| 2026-06-14 | 초기 구성 (에이전트 7 + 스킬 6) | 전체 | 가상 개발팀 하네스 신규 구축 |
+| 2026-06-14 | 회고 루프 추가 (retrospective 스킬 + build-project Phase 7 + retro 로그) | skills/retrospective, skills/build-project, .claude/retro | 매 빌드 후 대화 기반 자가 발전 요청 |
+| 2026-06-14 | Todo 앱 빌드 회고 반영: 빌드 실행 프로토콜(공유 워크스페이스 직렬화)·계약 하드닝(날짜TZ·4xx 비마스킹)·재개 체크포인트(RESUME+멱등 트리거)·팀 통신 규율·리더 독립 검증 | skills/architecture-and-delegation, skills/build-project, agents/* (빌드 5인) | 동시빌드 가짜실패·토큰만료 재개요청·통신 churn·OBS 신호 일반화 |
+| 2026-06-14 | 라이브 E2E 스모크 필수화: 실제 브라우저↔실제 백엔드 검증(CORS/프리플라이트/헤더 등), 계약 하드닝에 cross-origin 항목 추가 | skills/qa-verification, skills/build-project, skills/architecture-and-delegation | 터널 브라우저 CORS 403이 목·MockMvc·계약읽기·curl을 모두 뚫고 나간 갭(curl≠브라우저) |
+| 2026-06-15 | 계약 단일 소스(백엔드 파일)+소유자 규칙·2회 교차 시 리더 파일 동결, 팀 빌드 전 런타임 프리플라이트(Docker/포트) | skills/architecture-and-delegation, skills/build-project | 지뢰찾기 빌드서 시니어 상호 양보로 계약 교착·문서 thrash + Docker DOWN 블로커 |
+| 2026-06-15 | 디자인 충실도 검증 필수화: 완료 전 02_design 화면별 스크린샷 대조(모바일+데스크톱, 레이아웃·토큰·상태·반응형, PD 재리뷰 옵션) + 프론트 "스타일 완료 정의" | skills/qa-verification, skills/build-project, skills/architecture-and-delegation | 그동안 기능 충실도만 검증, PD 디자인대로 렌더됐는지(디자인 충실도)는 미검증 — 미스타일 UI가 전 게이트 통과 |
+| 2026-06-15 | 아키텍처 결정 기준 + 경량 ADR 도입: 평가할 힘(테스트용이성·단순성·변경가능성·위임·되돌림) 명시 + 핵심 결정마다 대안·트레이드오프·채택이유 기록(§3.5·출력템플릿 2.5·게이트) | skills/architecture-and-delegation | 시니어가 다양한 코드레벨 아키텍처 중 "관례 기본+사후 근거"로 결정하던 것을 대안 비교 기반으로 (사용자 지적) |
+| 2026-06-16 | 디자이너 시각화·자가검증 강화: 와이어프레임(필수) + HTML/CSS 프로토타입 제작 → 헤드리스 스크린샷 자가 검증(모바일+데스크톱) = 시각 기준물. 프론트 구현 타깃·QA 대조 기준으로 사용 | skills/product-design, agents/product-designer, skills/build-project(Phase2), skills/qa-verification | 디자이너가 텍스트 명세만 내고 시각 기준물이 없어 디자인 충실도를 사후에야 확인하던 것을 설계 단계에서 시각 확정 (사용자 요청) |
+| 2026-06-16 | PD 도메인 레퍼런스 추가: wwit.design(모바일 UI 패턴 갤러리)을 설계 단계 패턴 체크리스트로 참고(§1.5). WebFetch 텍스트 한계 명시 | skills/product-design, agents/product-designer, memory/wwit-design-reference | 사용자가 디자인 레퍼런스로 지정 — 표준 패턴 누락 방지 |
+| 2026-06-17 | 완료 인증 단일 소스 + 중단 빌드 이어받기 규율: 빌드 완료 = 리더 독립검증 후 BUILD_COMPLETE.md 쓴 시점에만 성립(매트릭스/QA의 완료 문구·특히 라이브 E2E·디자인 충실도는 리더 인증 대기 주장). Phase 0에 재개 분기(BUILD_COMPLETE 부재=미완, 직접 실행 재조정 후에만 완료 선언). RESUME에 수동 런타임 의존 정확한 기동 명령 기록 | skills/build-project(Phase 0·6·재개 체크포인트) | shop 빌드 이어받기서 세 상태 문서(RESUME·매트릭스·QA)가 3개 시점 가리킴 + 팀이 리더 전용 E2E/디자인 충실도를 자가 PASS로 기록 → 완료 판정 권위 모호 |
+| 2026-06-17 | 프로젝트 지식 베이스 도입: knowledge/ (index-core 스캔→INDEX.md/index.json) + recall-knowledge 스킬 + 사람용 Node 웹(서버+SPA, /api/search=rg). DB·ES 없이 파일=원본·생성색인 | knowledge/*, skills/recall-knowledge, skills/architecture-and-delegation(§2), memory/project-knowledge-base | 빌드 누적 지식을 클로드가 결정 전 재사용 + 사람 열람 |
+| 2026-06-18 | 주니어 just-in-time 스폰 + 소유권 브로커링(기반준비된 독립 배치 실재 시에만 스폰, 없으면 시니어 마무리; 스폰 즉시 소유권 시니어 통지; 시니어는 주니어 스폰/생존 가정 금지·타인 소유 비편집) + 프론트 게이트 정의 명시(tsc -b + vite build + vitest 셋 다, 최종 편집 직후 1회; 리더 인증=풀게이트 재실행) | skills/build-project(Phase3·4·6), agents/backend-senior·frontend-senior, skills/architecture-and-delegation | shop v2서 주니어 2명 marginal·시니어 주니어 visibility 충돌 3회·팀 "tsc0" 보고가 인증시점 2에러 드리프트(리더 풀게이트 재실행이 포착) |
+| 2026-06-18 | PM 엄밀 모드: 요구사항 명세에 도메인 시맨틱 산출물 추가 — 용어집+개념모델·비즈니스 불변식(INV)·상태 전이표·수용 시나리오(Given/When/Then 구체값). 비자명·상태/동시성/금전/권한 도메인 필수, 단순 CRUD는 스케일다운. 비즈니스 의미만(PD 시각·시니어 기술계약과 중복 금지) | skills/define-requirements(절차6·출력템플릿·게이트), agents/pm, skills/build-project(Phase1) | 사용자 요청(제품 엄밀화). shop서 재체크아웃 엣지·용어·불변식·상태기계를 시니어 ADR/QA가 사후 보강하던 것을 요구사항 단계로 끌어올림 |
+| 2026-06-19 | 지식 베이스 OKF 정합 + 개념 그래프: 카드 frontmatter에 type·timestamp(Google Open Knowledge Format 호환), 교차 프로젝트 재사용 패턴을 knowledge/patterns/*.md 개념 문서로 추출(CORS정석·비관적락정렬·Clock주입·계약동결·실브라우저E2E·Testcontainers), 카드↔패턴 마크다운 링크로 그래프 형성·INDEX.md 최상단 노출. 웹은 패턴 섹션+본문 그래프 링크 내비 | knowledge/index-core·cards·patterns·web, skills/recall-knowledge, memory/project-knowledge-base | 사용자가 OKF(Google, 2026-06-13) 소스 제시 — 우리 설계와 독립 수렴 검증, 그래프·표준 frontmatter·개념 단위를 채택 |
+| 2026-06-19 | 팀 stall/hang→리더 takeover 안전장치(N회 무활동·무응답=hang→kill→리더 직접 마무리/단일 재스폰) + 무거운 공유 테스트런타임 단일 러너+Testcontainers reuse(Docker 크래시 방지) + 엔드포인트당 단일소유자·게이트 전 중복매핑 점검 + 비동기 파이프라인 테스트 격리(동기 시드+시간윈도우) + Kotlin 블록주석 `/*`경로 금지 | skills/build-project(에러표), skills/architecture-and-delegation(빌드프로토콜·소유권), skills/tdd-implementation, agents/backend-senior·junior, memory/auto-resume-long-builds | message-platform(1000 TPS, 자율) 빌드서 팀 hang(리더 takeover로만 완성)·동시 Testcontainers가 Docker 크래시·중복 /api/stats 컨트롤러 82실패 캐스케이드·async 테스트 flake·중첩주석 컴파일 3회 |
+| 2026-06-19 | 지식 사이트에 채팅 추가: claude -p(구독 auth·의존성 0) + read-only 툴(Read/Grep/Glob) 드릴다운 + --resume 대화 지속, /api/chat(선택 CHAT_TOKEN 게이트), 기본 sonnet(CHAT_MODEL env). 달러 청구 없음·구독 할당량 소모 | knowledge/web/chat·server·public, memory/project-knowledge-base | 사이트에서 문서 내용을 자연어로 질의(사용자 요청) |

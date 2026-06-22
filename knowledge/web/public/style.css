@@ -1,0 +1,45 @@
+* { box-sizing: border-box; }
+body { margin: 0; display: flex; min-height: 100vh; font: 14px/1.5 -apple-system, system-ui, sans-serif; color: #1c2230; }
+#sidebar { width: 320px; flex: none; border-right: 1px solid #e2e6ee; padding: 16px; overflow-y: auto; height: 100vh; position: sticky; top: 0; background: #f8fafc; }
+#sidebar h1 { font-size: 16px; margin: 0 0 12px; }
+#search { width: 100%; padding: 8px 10px; border: 1px solid #cbd3e0; border-radius: 8px; margin-bottom: 12px; }
+#type-filters { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+.chip { font-size: 12px; padding: 3px 9px; border: 1px solid #cbd3e0; border-radius: 999px; cursor: pointer; background: #fff; }
+.chip.active { background: #2563eb; color: #fff; border-color: #2563eb; }
+.project > summary { font-weight: 600; cursor: pointer; padding: 6px 0; }
+.cat { margin: 6px 0 6px 8px; }
+.cat > .cat-name { font-size: 11px; text-transform: uppercase; color: #6b7280; letter-spacing: .04em; }
+.file { display: block; padding: 3px 8px; border-radius: 6px; cursor: pointer; color: #1f3a8a; text-decoration: none; word-break: break-all; }
+.file:hover, .file.active { background: #e6eefe; }
+#main { flex: 1; padding: 24px 32px; overflow-x: auto; max-width: 100%; }
+#main pre { background: #f6f8fa; padding: 14px; border-radius: 8px; overflow-x: auto; }
+.hint { color: #6b7280; }
+.meta-bar { color: #6b7280; font-size: 12px; margin-bottom: 16px; }
+.topbar { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+.back { display: none; flex: none; font-size: 14px; padding: 7px 14px; border: 1px solid #cbd3e0; border-radius: 8px; background: #fff; cursor: pointer; }
+.back:hover { background: #eef2f9; }
+.topbar .path { color: #6b7280; font-size: 12px; word-break: break-all; }
+.chat-model { margin-left: auto; flex: none; font-size: 13px; padding: 6px 8px; border: 1px solid #cbd3e0; border-radius: 8px; background: #fff; cursor: pointer; }
+.search-hit { display: block; padding: 6px 8px; border-bottom: 1px solid #eef1f6; cursor: pointer; }
+.search-hit .loc { color: #6b7280; font-size: 12px; }
+@media (max-width: 720px) {
+  body { flex-direction: column; }
+  #sidebar { width: 100%; height: auto; position: static; border-right: none; border-bottom: 1px solid #e2e6ee; }
+  /* 파일을 열면 상세가 목록을 가리는 별도 '페이지'처럼 동작 */
+  body.detail #sidebar { display: none; }
+  body.detail #main { min-height: 100vh; padding-top: 16px; }
+  .back { display: inline-block; }
+}
+#chat-btn { width: 100%; margin-bottom: 12px; padding: 9px; border: 1px solid #2563eb; color: #2563eb; background: #fff; border-radius: 8px; cursor: pointer; font-size: 14px; }
+#chat-btn:hover { background: #eef2fe; }
+#chat-log { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }
+.msg { padding: 10px 14px; border-radius: 12px; max-width: 80%; word-break: break-word; }
+.msg-user { align-self: flex-end; background: #2563eb; color: #fff; }
+.msg-assistant { align-self: flex-start; background: #f1f4f9; }
+.msg-assistant.pending { color: #6b7280; font-style: italic; }
+.msg-assistant p:first-child { margin-top: 0; }
+.msg-assistant p:last-child { margin-bottom: 0; }
+.msg-assistant pre { background: #e9edf3; padding: 8px; border-radius: 6px; overflow-x: auto; }
+#chat-form { display: flex; gap: 8px; position: sticky; bottom: 0; background: #fff; padding: 8px 0; }
+#chat-input { flex: 1; padding: 10px 12px; border: 1px solid #cbd3e0; border-radius: 8px; }
+#chat-form button { padding: 10px 16px; border: none; background: #2563eb; color: #fff; border-radius: 8px; cursor: pointer; }

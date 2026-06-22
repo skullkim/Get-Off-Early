@@ -1,0 +1,5 @@
+{
+  "projects": [
+    { "name": "my-project", "git": "https://github.com/your-username/my-project.git" }
+  ]
+}

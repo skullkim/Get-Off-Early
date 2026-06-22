@@ -1,0 +1,8 @@
+{
+  "projects": [
+    { "name": "todo", "git": "https://github.com/skullkim/todo.git" },
+    { "name": "shop", "git": "https://github.com/skullkim/shop.git" },
+    { "name": "minesweeper", "git": "https://github.com/skullkim/minesweeper.git" },
+    { "name": "message-platform", "git": "https://github.com/skullkim/message-platform.git" }
+  ]
+}
