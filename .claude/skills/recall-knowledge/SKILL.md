@@ -13,6 +13,7 @@ get-off-early 는 빌드를 거듭하며 `knowledge/` 에 지식 베이스를 �
 2. **재사용 패턴 먼저**: INDEX.md 최상단 `재사용 패턴 (patterns/)` 섹션이 교차 프로젝트로 검증된 결정·함정의 distill이다 — 여기서 해당하는 패턴(`knowledge/patterns/*.md`)을 먼저 펼친다. 패턴 문서는 출처 프로젝트 카드로 링크된다(그래프).
 3. **관련 프로젝트 식별 + 드릴다운**: 도메인/스택이 겹치는 과거 프로젝트를 요약·태그·highlights·관련 패턴 링크로 고르고, 필요한 원본만 Read 한다. 예: 결제·정산 → `shop/_workspace/02b_seller_design.md`, CORS·인증 → 해당 프로젝트 `03_backend_architecture.md`. 리터럴 용어는 `Grep` 으로 전 프로젝트 본문 검색.
 4. **재사용/회피**: 채택할 패턴과 과거 Gotcha(반복 버그)를 결정에 명시 반영한다. 새 패턴을 발견하면 회고 때 `knowledge/patterns/` 에 개념 문서로 추가한다.
+5. **검색 실패 로그(miss-log)**: INDEX·패턴·카드·Grep에서 **답을 찾지 못한 질의**는 `knowledge/miss-log.md` 에 한 줄 append 한다(`- YYYY-MM-DD [프로젝트/맥락] 질의 — 무엇이 없었나`). 히트 0이 반복되는 질문이 곧 다음에 쓸 지식 문서다 — 회고(retrospective)가 이 로그를 읽어 카드/패턴 후보를 감이 아니라 수요 기반으로 정한다.
 
 ## 언제
 
