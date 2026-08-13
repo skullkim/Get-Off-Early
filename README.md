@@ -57,6 +57,7 @@ setup.sh       멱등 세팅
 - **필수:** Node.js, git
 - **선택:** `rg`(없으면 JS 폴백 검색), `claude` CLI(지식 채팅·카드 ingest용)
 - 시크릿은 환경변수로: `CHAT_TOKEN`(채팅 게이트), `CHAT_MODEL`(채팅 기본 모델). 커밋하지 마세요.
+- 채팅 운영 env(선택): `CHAT_MAX_CONCURRENT`(동시 채팅 상한, 기본 2 — 초과 시 429), `CHAT_MODEL_SONNET`/`CHAT_MODEL_OPUS`(allowlist 모델 id 교체 — 모델 세대 교체 시 코드 수정 불필요).
 
 ## 하네스 동작 원리
 

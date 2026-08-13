@@ -7,23 +7,26 @@ const DISALLOWED_TOOLS = 'Bash Edit Write WebFetch WebSearch Task';
 
 // User-selectable models. The UI sends a friendly key ('sonnet'|'opus');
 // only ids in this allowlist are ever passed to `claude --model`.
-export const CHAT_MODELS = {
-  sonnet: 'claude-sonnet-4-6',
-  opus: 'claude-opus-4-8',
-};
-const ALLOWED_IDS = new Set(Object.values(CHAT_MODELS));
-export const DEFAULT_MODEL = ALLOWED_IDS.has(process.env.CHAT_MODEL)
-  ? process.env.CHAT_MODEL
-  : CHAT_MODELS.sonnet;
+// Ids are env-overridable (CHAT_MODEL_SONNET / CHAT_MODEL_OPUS) so a model
+// generation swap needs no code change — the allowlist structure stays.
+export function buildChatModels(env = process.env) {
+  return {
+    sonnet: env.CHAT_MODEL_SONNET || 'claude-sonnet-4-6',
+    opus: env.CHAT_MODEL_OPUS || 'claude-opus-4-8',
+  };
+}
+export const CHAT_MODELS = buildChatModels();
 
 // Resolve untrusted input to a safe model id. Accepts a friendly key or an
 // exact allowed id; anything unknown/missing falls back to the default —
 // arbitrary strings never reach the spawned process.
-export function resolveModel(input) {
-  if (input && CHAT_MODELS[input]) return CHAT_MODELS[input];
-  if (input && ALLOWED_IDS.has(input)) return input;
-  return DEFAULT_MODEL;
+export function resolveModel(input, models = CHAT_MODELS) {
+  const allowed = new Set(Object.values(models));
+  if (input && models[input]) return models[input];
+  if (input && allowed.has(input)) return input;
+  return allowed.has(process.env.CHAT_MODEL) ? process.env.CHAT_MODEL : models.sonnet;
 }
+export const DEFAULT_MODEL = resolveModel(undefined);
 
 export function buildSystemPrompt(root) {
   const indexPath = path.join(root, 'knowledge', 'INDEX.md');
@@ -56,18 +59,31 @@ export function buildChatArgs({ message, sessionId, model, systemPrompt }) {
 
 const CLEAN_ENV_KEYS = ['CLAUDECODE', 'CLAUDE_CODE_ENTRYPOINT', 'CLAUDE_CODE_SESSION_ID', 'CLAUDE_CODE_CHILD_SESSION'];
 
-export function chat({ message, sessionId, root, model, timeoutMs = 120000 }) {
+// Tag low-level failures with stable codes the server can map to proper HTTP
+// statuses. ENOENT = the `claude` binary is missing from PATH — the one
+// failure an operator can fix directly, so it deserves an explicit message.
+function tagSpawnError(e) {
+  if (e && e.code === 'ENOENT') {
+    return Object.assign(new Error('claude CLI not found — install it or check PATH'), { code: 'CLAUDE_NOT_FOUND' });
+  }
+  return e;
+}
+
+export function chat({ message, sessionId, root, model, timeoutMs = 120000, spawnFn = spawn }) {
   const systemPrompt = sessionId ? null : buildSystemPrompt(root);
   const args = buildChatArgs({ message, sessionId, model: resolveModel(model), systemPrompt });
   const env = { ...process.env };
   for (const k of CLEAN_ENV_KEYS) delete env[k];
   return new Promise((resolve, reject) => {
-    const child = spawn('claude', args, { cwd: root, env });
+    const child = spawnFn('claude', args, { cwd: root, env });
     let stdout = '', stderr = '';
-    const timer = setTimeout(() => { child.kill('SIGKILL'); reject(new Error('chat timeout')); }, timeoutMs);
+    const timer = setTimeout(() => {
+      child.kill('SIGKILL');
+      reject(Object.assign(new Error('chat timeout'), { code: 'CHAT_TIMEOUT' }));
+    }, timeoutMs);
     child.stdout.on('data', (d) => { stdout += d; });
     child.stderr.on('data', (d) => { stderr += d; });
-    child.on('error', (e) => { clearTimeout(timer); reject(e); });
+    child.on('error', (e) => { clearTimeout(timer); reject(tagSpawnError(e)); });
     child.on('close', (code) => {
       clearTimeout(timer);
       if (code !== 0) return reject(new Error(`claude exited ${code}: ${stderr.slice(0, 300)}`));

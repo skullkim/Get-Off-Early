@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { buildSystemPrompt, buildChatArgs, resolveModel, CHAT_MODELS } from '../web/chat.mjs';
+import { EventEmitter } from 'node:events';
+import { buildSystemPrompt, buildChatArgs, resolveModel, buildChatModels, chat, CHAT_MODELS } from '../web/chat.mjs';
 
 function fixtureRoot() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'chat-'));
@@ -63,4 +64,52 @@ test('resolveModel falls back to an allowed model for missing/unknown input', ()
   assert.ok(allowed.includes(resolveModel(undefined)));      // no choice → default
   assert.ok(allowed.includes(resolveModel('')));             // empty → default
   assert.ok(allowed.includes(resolveModel('haiku; rm -rf /')));  // arbitrary string never passes through
+});
+
+test('buildChatModels returns baked-in ids when env has no overrides', () => {
+  assert.deepEqual(buildChatModels({}), {
+    sonnet: 'claude-sonnet-4-6',
+    opus: 'claude-opus-4-8',
+  });
+});
+
+test('buildChatModels lets env override a model id without touching the other', () => {
+  const models = buildChatModels({ CHAT_MODEL_SONNET: 'claude-sonnet-5' });
+  assert.equal(models.sonnet, 'claude-sonnet-5');
+  assert.equal(models.opus, 'claude-opus-4-8');
+});
+
+test('resolveModel honors an injected models map (env-overridden allowlist)', () => {
+  const models = buildChatModels({ CHAT_MODEL_SONNET: 'claude-sonnet-5', CHAT_MODEL_OPUS: 'claude-opus-5' });
+  assert.equal(resolveModel('sonnet', models), 'claude-sonnet-5');
+  assert.equal(resolveModel('claude-opus-5', models), 'claude-opus-5');
+  assert.equal(resolveModel('unknown-model', models), 'claude-sonnet-5');  // fallback stays inside the map
+});
+
+function fakeSpawnChild() {
+  const child = new EventEmitter();
+  child.stdout = new EventEmitter();
+  child.stderr = new EventEmitter();
+  child.kill = () => {};
+  return child;
+}
+
+test('chat rejects with CLAUDE_NOT_FOUND when the claude binary is missing', async () => {
+  const spawnFn = () => {
+    const child = fakeSpawnChild();
+    setImmediate(() => child.emit('error', Object.assign(new Error('spawn claude ENOENT'), { code: 'ENOENT' })));
+    return child;
+  };
+  await assert.rejects(
+    chat({ message: 'hi', root: fixtureRoot(), spawnFn }),
+    (e) => e.code === 'CLAUDE_NOT_FOUND' && /claude/i.test(e.message),
+  );
+});
+
+test('chat rejects with CHAT_TIMEOUT when the process outlives timeoutMs', async () => {
+  const spawnFn = () => fakeSpawnChild();  // never closes
+  await assert.rejects(
+    chat({ message: 'hi', root: fixtureRoot(), spawnFn, timeoutMs: 20 }),
+    (e) => e.code === 'CHAT_TIMEOUT',
+  );
 });

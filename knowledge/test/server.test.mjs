@@ -1,6 +1,6 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { createServer, safeResolve, runSearch, ROOT } from '../web/server.mjs';
+import { createServer, safeResolve, runSearch, createGate, chatErrorResponse, ROOT } from '../web/server.mjs';
 
 let base;
 let server;
@@ -73,4 +73,50 @@ test('POST /api/chat returns 400 on missing message', async () => {
     body: JSON.stringify({}),
   });
   assert.equal(res.status, 400);     // returns before spawning claude
+});
+
+test('createGate admits up to max and refuses beyond, until released', () => {
+  const gate = createGate(2);
+  assert.equal(gate.tryAcquire(), true);
+  assert.equal(gate.tryAcquire(), true);
+  assert.equal(gate.tryAcquire(), false);  // full
+  gate.release();
+  assert.equal(gate.tryAcquire(), true);   // slot freed
+});
+
+test('chatErrorResponse maps tagged errors to actionable statuses', () => {
+  assert.equal(chatErrorResponse({ code: 'CLAUDE_NOT_FOUND', message: 'claude CLI not found' }).status, 503);
+  assert.equal(chatErrorResponse({ code: 'CHAT_TIMEOUT', message: 'chat timeout' }).status, 504);
+  const other = chatErrorResponse(new Error('boom'));
+  assert.equal(other.status, 500);
+  assert.equal(other.body.error, 'boom');
+});
+
+function postChat(b) {
+  return fetch(`${b}/api/chat`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ message: 'hi' }),
+  });
+}
+
+test('POST /api/chat returns 429 while the concurrent limit is held, then recovers', async () => {
+  let release;
+  const blocked = new Promise((r) => { release = r; });
+  const srv = createServer(ROOT, {
+    chatFn: () => blocked.then(() => ({ answer: 'ok', sessionId: 's1' })),
+    gate: createGate(1),
+  });
+  await new Promise((r) => srv.listen(0, r));
+  const b = `http://localhost:${srv.address().port}`;
+  try {
+    const first = postChat(b);                          // occupies the single slot
+    await new Promise((r) => setTimeout(r, 50));        // let it reach the gate
+    assert.equal((await postChat(b)).status, 429);      // second refused, no spawn
+    release();
+    assert.equal((await first).status, 200);            // held request completes
+    assert.equal((await postChat(b)).status, 200);      // slot released for new chats
+  } finally {
+    srv.close();
+  }
 });

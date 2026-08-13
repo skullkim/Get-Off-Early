@@ -95,7 +95,25 @@ function readBody(req) {
   });
 }
 
-export function handleRequest(root) {
+// Each chat request spawns a `claude` process for up to 120s. Unbounded
+// concurrency can exhaust the machine and the subscription quota, so admit
+// at most `max` chats at once (CHAT_MAX_CONCURRENT env, default 2).
+export function createGate(max) {
+  let active = 0;
+  return {
+    tryAcquire() { if (active >= max) return false; active++; return true; },
+    release() { active = Math.max(0, active - 1); },
+  };
+}
+const CHAT_MAX_CONCURRENT = Math.max(1, Number(process.env.CHAT_MAX_CONCURRENT) || 2);
+
+export function chatErrorResponse(e) {
+  if (e && e.code === 'CLAUDE_NOT_FOUND') return { status: 503, body: { error: e.message } };
+  if (e && e.code === 'CHAT_TIMEOUT') return { status: 504, body: { error: e.message } };
+  return { status: 500, body: { error: String((e && e.message) || e) } };
+}
+
+export function handleRequest(root, { chatFn = chat, gate = createGate(CHAT_MAX_CONCURRENT) } = {}) {
   return (req, res) => {
     const url = new URL(req.url, 'http://localhost');
     if (url.pathname === '/api/index') return sendJson(res, 200, buildIndex(root));
@@ -114,11 +132,15 @@ export function handleRequest(root) {
         let body;
         try { body = JSON.parse(raw || '{}'); } catch { return sendJson(res, 400, { error: 'invalid json' }); }
         if (!body.message || !String(body.message).trim()) return sendJson(res, 400, { error: 'message required' });
+        if (!gate.tryAcquire()) return sendJson(res, 429, { error: 'too many concurrent chats — retry shortly' });
         try {
-          const result = await chat({ message: body.message, sessionId: body.sessionId, model: body.model, root });
+          const result = await chatFn({ message: body.message, sessionId: body.sessionId, model: body.model, root });
           sendJson(res, 200, result);
         } catch (e) {
-          sendJson(res, 500, { error: String((e && e.message) || e) });
+          const { status, body: errBody } = chatErrorResponse(e);
+          sendJson(res, status, errBody);
+        } finally {
+          gate.release();
         }
       });
       return;
@@ -131,8 +153,8 @@ export function handleRequest(root) {
   };
 }
 
-export function createServer(root = ROOT) {
-  return http.createServer(handleRequest(root));
+export function createServer(root = ROOT, deps) {
+  return http.createServer(handleRequest(root, deps));
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
