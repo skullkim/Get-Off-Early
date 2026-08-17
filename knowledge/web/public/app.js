@@ -23,6 +23,11 @@ function renderPatterns() {
   for (const pat of pats) {
     const a = document.createElement('a');
     a.className = 'file'; a.textContent = pat.title;
+    for (const d of pat.domain || []) {
+      const badge = document.createElement('span');
+      badge.className = 'domain-badge'; badge.textContent = d;
+      a.appendChild(badge);
+    }
     a.onclick = () => openFile(pat.path);
     det.appendChild(a);
   }

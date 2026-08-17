@@ -3,11 +3,15 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   classifyFile, extractReqIds, extractHeaders, parseCard,
   buildIndex, renderJson, renderMarkdown, findProjects,
   extractLinks, buildPatterns,
+  DOMAINS, normalizeDomains, extractSummary, groupPatternsByDomain,
 } from '../index-core.mjs';
+
+const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 
 function fixture() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'kb-'));
@@ -164,4 +168,101 @@ test('renderMarkdown shows patterns section and project links', () => {
   assert.match(md, /## 재사용 패턴/);
   assert.match(md, /데모 패턴/);
   assert.match(md, /관련 패턴\/지식:/);
+});
+
+// --- 분야(domain) 축 ---------------------------------------------------------
+
+// 분야별 패턴 문서만 담은 최소 루트 (분류 축 전용 픽스처)
+function patternsFixture(docs) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'dom-'));
+  const dir = path.join(root, 'knowledge', 'patterns');
+  fs.mkdirSync(dir, { recursive: true });
+  for (const [slug, text] of Object.entries(docs)) fs.writeFileSync(path.join(dir, `${slug}.md`), text);
+  return root;
+}
+
+test('DOMAINS는 5개 분류 축(backend·frontend·qa·process·infra)', () => {
+  assert.deepEqual(DOMAINS, ['backend', 'frontend', 'qa', 'process', 'infra']);
+});
+
+test('normalizeDomains: 배열/단일값/공백/중복 정규화 + 분류 축 순서로 정렬', () => {
+  assert.deepEqual(normalizeDomains(['qa', 'backend']), ['backend', 'qa']);
+  assert.deepEqual(normalizeDomains('backend'), ['backend']);
+  assert.deepEqual(normalizeDomains([' Backend ', 'backend']), ['backend']);
+  assert.deepEqual(normalizeDomains(undefined), []);
+  // 미지 분야는 버리지 않고 알려진 축 뒤에 붙인다(오타를 삼키지 않기 위해)
+  assert.deepEqual(normalizeDomains(['mystery', 'process']), ['process', 'mystery']);
+});
+
+test('extractSummary: frontmatter·헤딩을 건너뛴 첫 본문 줄, 마크다운 장식 제거', () => {
+  const text = '---\ntitle: T\n---\n\n# 문제\n**동시** 구매 경합에서 [락](x.md)이 필요하다.\n\n# 정석\n- ...\n';
+  assert.equal(extractSummary(text), '동시 구매 경합에서 락이 필요하다.');
+  assert.equal(extractSummary('# 제목만 있음\n'), '');
+  assert.equal(extractSummary(`---\ntitle: T\n---\n${'가'.repeat(200)}\n`, 40).length, 40);
+});
+
+test('buildPatterns: domain·sources·summary 파싱 (source_projects는 레거시 별칭)', () => {
+  const root = patternsFixture({
+    'a': '---\ntitle: A\ndomain: [backend, qa]\nsources: [alpha, beta]\n---\n# 원칙\n한 줄 요약.\n',
+    'b': '---\ntitle: B\nsource_projects: [gamma]\n---\n# 원칙\nB 요약.\n',
+  });
+  const [a, b] = buildPatterns(root);
+  assert.deepEqual(a.domain, ['backend', 'qa']);
+  assert.deepEqual(a.sources, ['alpha', 'beta']);
+  assert.equal(a.summary, '한 줄 요약.');
+  assert.deepEqual(b.domain, []);
+  assert.deepEqual(b.sources, ['gamma']);
+  assert.deepEqual(b.sourceProjects, ['gamma']); // 하위 호환 필드 유지
+});
+
+test('groupPatternsByDomain: 분류 축 순서로 그룹, 다분야 패턴은 각 그룹에 등장, 미분류 분리', () => {
+  const groups = groupPatternsByDomain([
+    { slug: 'x', domain: ['qa', 'backend'] },
+    { slug: 'y', domain: ['backend'] },
+    { slug: 'z', domain: [] },
+  ]);
+  assert.deepEqual(groups.map((g) => g.domain), ['backend', 'qa', '(미분류)']);
+  assert.deepEqual(groups[0].patterns.map((p) => p.slug), ['x', 'y']);
+  assert.deepEqual(groups[1].patterns.map((p) => p.slug), ['x']);
+  assert.deepEqual(groups[2].patterns.map((p) => p.slug), ['z']);
+});
+
+test('renderMarkdown: 패턴 섹션을 분야별 그룹(### backend …)으로 렌더', () => {
+  const root = patternsFixture({
+    'lock': '---\ntitle: 비관적 락\ndomain: [backend]\nsources: [alpha]\n---\n# 문제\n오버셀을 막는다.\n',
+    'e2e': '---\ntitle: 실브라우저 E2E\ndomain: [qa]\nsources: [beta]\n---\n# 원칙\n그린 != 통합.\n',
+  });
+  const md = renderMarkdown(buildIndex(root));
+  assert.match(md, /## 재사용 패턴/);
+  assert.match(md, /### backend\n- 비관적 락 — 오버셀을 막는다\./);
+  assert.match(md, /### qa\n- 실브라우저 E2E — 그린 != 통합\./);
+  assert.match(md, /출처: alpha/);
+  assert.ok(md.indexOf('### backend') < md.indexOf('### qa'), '분류 축 순서대로');
+});
+
+test('buildIndex/renderJson: 패턴에 domain·sources 포함', () => {
+  const root = patternsFixture({
+    'lock': '---\ntitle: 비관적 락\ndomain: [backend]\nsources: [alpha]\n---\n# 문제\n오버셀.\n',
+  });
+  const obj = JSON.parse(renderJson(buildIndex(root)));
+  assert.deepEqual(obj.patterns[0].domain, ['backend']);
+  assert.deepEqual(obj.patterns[0].sources, ['alpha']);
+  assert.equal(obj.patterns[0].summary, '오버셀.');
+});
+
+test('레포의 모든 패턴 문서는 유효한 domain과 출처 카드를 갖는다', () => {
+  const pats = buildPatterns(REPO_ROOT);
+  assert.ok(pats.length >= 6, `패턴 문서가 있어야 한다 (현재 ${pats.length})`);
+  for (const pat of pats) {
+    assert.ok(pat.domain.length > 0, `${pat.slug}: domain 누락`);
+    for (const d of pat.domain) assert.ok(DOMAINS.includes(d), `${pat.slug}: 미지 분야 ${d}`);
+    assert.ok(pat.sources.length > 0, `${pat.slug}: sources 누락`);
+    for (const s of pat.sources) {
+      assert.ok(
+        fs.existsSync(path.join(REPO_ROOT, 'knowledge', 'cards', `${s}.md`)),
+        `${pat.slug}: 출처 ${s} 의 카드 없음`
+      );
+    }
+    assert.ok(pat.summary.length > 0, `${pat.slug}: 요약 추출 실패`);
+  }
 });

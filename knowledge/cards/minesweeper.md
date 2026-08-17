@@ -29,3 +29,5 @@ timestamp: 2026-06-19T00:00:00Z
 - [CORS 정석](../patterns/cors-done-right.md)이 여기서 회귀0으로 검증됨 — [todo](todo.md) 회고가 실제로 작동.
 - 서버 권위 + [Clock 주입 결정적 테스트](../patterns/clock-injection-deterministic-time.md)(타이밍 의존 없이 검증).
 - 계약 교착은 [계약 단일 소스 + 리더 동결](../patterns/contract-single-source-freeze.md)로 종결.
+- 전 게이트 그린인데 미스타일 → [실제 브라우저 E2E + 시각 충실도](../patterns/real-browser-e2e.md)의 두 번째 사각지대 사례.
+- 통합 테스트는 [Testcontainers 실제 Postgres](../patterns/testcontainers-real-db.md) — Docker·포트(5433) 프리플라이트 필요.

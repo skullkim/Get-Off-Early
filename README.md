@@ -26,12 +26,14 @@ node knowledge/web/server.mjs    # 지식 웹앱 (기본 http://localhost:4178)
   retro/       자가발전 회고 로그
 knowledge/
   web/         지식 웹앱 (검색 · 파일 열람 · claude -p 기반 스트리밍 채팅)
-  cards/       프로젝트별 지식 카드   patterns/  교차 프로젝트 재사용 패턴
+  cards/       프로젝트별 지식 카드   patterns/  교차 프로젝트 재사용 패턴(교훈)
   ingest.mjs   외부 프로젝트 → 지식 카드 생성
 scripts/       매니페스트 clone · 카드 ingest 오케스트레이션
 projects.json  내 지식 프로젝트 목록 (개인 설정)
 setup.sh       멱등 세팅
 ```
+
+**교훈의 분야 축**: `knowledge/patterns/*.md`는 프로젝트 이름을 지운 일반 교훈이고, frontmatter에 `domain`(**backend · frontend · qa · process · infra**)과 `sources`(출처 프로젝트)를 답니다. `INDEX.md`가 이를 분야별로 그룹핑하므로, 각 역할은 `recall-knowledge` 스킬의 **역할 → 분야 라우팅 표**대로 자기 분야 교훈만 읽고 구현에 들어갑니다.
 
 ## 옵션
 

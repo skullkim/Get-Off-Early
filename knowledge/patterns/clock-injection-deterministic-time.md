@@ -3,7 +3,8 @@ type: Reusable Pattern
 title: Clock 주입 — 시간 의존 로직의 결정적 테스트
 tags: [testing, time, determinism, expiry, server-authoritative]
 timestamp: 2026-06-19T00:00:00Z
-source_projects: [shop, minesweeper]
+domain: [backend]
+sources: [shop, minesweeper]
 ---
 
 # 문제
@@ -17,6 +18,8 @@ source_projects: [shop, minesweeper]
 # 효과
 - 만료 경계·경과시간을 타이밍 의존 없이 검증. 정합성이 스케줄러 타이밍에 비의존.
 
-# 출처/적용
-- [shop](../cards/shop.md): 홀드 만료/카운트다운(ADR-1).
-- [minesweeper](../cards/minesweeper.md): 서버 권위 elapsedSeconds.
+# 적용 사례 (일반화)
+- 예약/홀드 TTL 만료와 카운트다운: 정합 소스는 `expires_at > now()` 지연 필터, 스위퍼는 상태 구체화만(ADR로 채택).
+- 서버 권위 경과시간(elapsedSeconds): 서버가 계산하고 클라이언트는 표시만.
+
+> 출처 프로젝트는 frontmatter `sources` 참조 (`knowledge/cards/<프로젝트>.md`).

@@ -39,6 +39,59 @@ export function extractLinks(markdown) {
   return out;
 }
 
+// 교훈(patterns)의 분류 축 — 역할이 자기 분야만 읽을 수 있게 하는 단일 목록.
+// (infra 는 현재 해당 패턴이 없어도 축으로 미리 열어 둔다.)
+export const DOMAINS = ['backend', 'frontend', 'qa', 'process', 'infra'];
+export const UNCLASSIFIED_DOMAIN = '(미분류)';
+const SUMMARY_MAX = 120;
+
+function domainRank(d) {
+  const i = DOMAINS.indexOf(d);
+  return i === -1 ? DOMAINS.length : i;
+}
+
+function asList(value) {
+  const list = Array.isArray(value) ? value : (value === undefined || value === null || value === '' ? [] : [value]);
+  const out = [], seen = new Set();
+  for (const raw of list) {
+    const v = String(raw).trim();
+    if (!v || seen.has(v)) continue;
+    seen.add(v); out.push(v);
+  }
+  return out;
+}
+
+// frontmatter 의 domain 값을 정규화한다. 알려진 축을 DOMAINS 순서로,
+// 미지 값(오타 포함)은 버리지 않고 뒤에 붙여 색인에 드러낸다.
+export function normalizeDomains(value) {
+  return asList(value)
+    .map((d) => d.toLowerCase())
+    .filter((d, i, arr) => arr.indexOf(d) === i)
+    .sort((a, b) => domainRank(a) - domainRank(b) || a.localeCompare(b));
+}
+
+function splitFrontmatter(text) {
+  const m = text.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
+  return m ? { raw: m[1], body: m[2] } : { raw: '', body: text };
+}
+
+// 문서의 첫 본문 줄(헤딩 제외)을 한 줄 요약으로 뽑는다 — 별도 summary 키 없이 동작.
+export function extractSummary(text, max = SUMMARY_MAX) {
+  for (const raw of splitFrontmatter(text).body.split('\n')) {
+    const line = raw.trim();
+    if (!line || line.startsWith('#') || line.startsWith('>')) continue;
+    const plain = line
+      .replace(/^\s*[-*]\s+/, '')
+      .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+      .replace(/\*\*/g, '')
+      .replace(/`/g, '')
+      .trim();
+    if (!plain) continue;
+    return plain.length > max ? plain.slice(0, max - 1).trimEnd() + '…' : plain;
+  }
+  return '';
+}
+
 export function parseCard(text) {
   const fm = {};
   let body = text;
@@ -156,17 +209,37 @@ export function buildPatterns(root) {
   return findPatterns(root).map((slug) => {
     const text = fs.readFileSync(path.join(root, 'knowledge', 'patterns', `${slug}.md`), 'utf8');
     const { frontmatter: fm } = parseCard(text);
+    // 출처는 frontmatter 가 단일 소스 — `source_projects` 는 레거시 별칭.
+    const sources = asList(fm.sources !== undefined ? fm.sources : fm.source_projects);
     return {
       slug,
       path: `knowledge/patterns/${slug}.md`,
       type: fm.type || 'Reusable Pattern',
       title: fm.title || slug,
+      domain: normalizeDomains(fm.domain),
+      summary: extractSummary(text),
       tags: Array.isArray(fm.tags) ? fm.tags : (fm.tags ? [fm.tags] : []),
       timestamp: fm.timestamp || null,
-      sourceProjects: Array.isArray(fm.source_projects) ? fm.source_projects : (fm.source_projects ? [fm.source_projects] : []),
+      sources,
+      sourceProjects: sources,
       links: extractLinks(text),
     };
   });
+}
+
+// 분야별 그룹 — 다분야 패턴은 각 그룹에 등장하고, domain 없는 패턴은 (미분류)로 모인다.
+export function groupPatternsByDomain(patterns) {
+  const groups = new Map();
+  for (const pat of patterns) {
+    const domains = pat.domain && pat.domain.length ? pat.domain : [UNCLASSIFIED_DOMAIN];
+    for (const d of domains) {
+      if (!groups.has(d)) groups.set(d, []);
+      groups.get(d).push(pat);
+    }
+  }
+  return [...groups.entries()]
+    .sort((a, b) => domainRank(a[0]) - domainRank(b[0]) || a[0].localeCompare(b[0]))
+    .map(([domain, items]) => ({ domain, patterns: items }));
 }
 
 export function buildIndex(root) {
@@ -197,12 +270,19 @@ export function renderMarkdown(index) {
     '',
   ];
   if (index.patterns && index.patterns.length) {
-    lines.push('## 재사용 패턴 (patterns/) — 교차 프로젝트 개념');
-    for (const pat of index.patterns) {
-      const src = pat.sourceProjects.length ? ` — 출처: ${pat.sourceProjects.join(', ')}` : '';
-      lines.push(`- ${pat.title}${src}  (${pat.path})`);
-    }
+    lines.push('## 재사용 패턴 (patterns/) — 분야별 교차 프로젝트 교훈');
+    lines.push(`_분야 축: ${DOMAINS.join(' · ')} — 각 역할은 착수 전 자기 분야 그룹을 먼저 읽는다 (다분야 패턴은 여러 그룹에 등장)._`);
     lines.push('');
+    for (const group of groupPatternsByDomain(index.patterns)) {
+      lines.push(`### ${group.domain}`);
+      for (const pat of group.patterns) {
+        const sources = pat.sources || pat.sourceProjects || [];
+        const src = sources.length ? ` — 출처: ${sources.join(', ')}` : '';
+        const sum = pat.summary ? ` — ${pat.summary}` : '';
+        lines.push(`- ${pat.title}${sum}  (${pat.path})${src}`);
+      }
+      lines.push('');
+    }
   }
   for (const p of index.projects) {
     lines.push(`## ${p.id} — ${p.title}  [${p.status}]`);

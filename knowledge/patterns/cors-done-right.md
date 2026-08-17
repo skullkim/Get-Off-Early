@@ -3,7 +3,8 @@ type: Reusable Pattern
 title: CORS 정석 — 상대 baseURL + dev 프록시 + allowlist
 tags: [cors, frontend, backend, deployment, preflight]
 timestamp: 2026-06-19T00:00:00Z
-source_projects: [todo, minesweeper]
+domain: [backend, frontend]
+sources: [todo, minesweeper]
 ---
 
 # 문제
@@ -17,6 +18,8 @@ source_projects: [todo, minesweeper]
 # 검증
 - **완료 선언 전 실제 브라우저↔실제 백엔드 1회 E2E 스모크** 필수 — curl은 Origin/프리플라이트를 안 보낸다. ([실제 브라우저 E2E](real-browser-e2e.md))
 
-# 출처/적용
-- [todo](../cards/todo.md): allowlist localhost-only → 터널 403 (회귀로 학습).
-- [minesweeper](../cards/minesweeper.md): 처음부터 이 패턴 적용 → 프리플라이트 200·ACAO 확인, 403 회귀 0.
+# 적용 사례 (일반화)
+- allowlist를 localhost-only로 박은 빌드에서 터널 origin 403 — 회귀로 학습한 원본 사례.
+- 후속 빌드에서 처음부터 이 패턴을 적용 → 프리플라이트 200·ACAO 확인, CORS 403 회귀 0.
+
+> 출처 프로젝트는 frontmatter `sources` 참조 (`knowledge/cards/<프로젝트>.md`).

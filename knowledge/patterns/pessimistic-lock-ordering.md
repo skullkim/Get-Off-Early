@@ -3,7 +3,8 @@ type: Reusable Pattern
 title: 비관적 락 + 정렬된 락 획득 — 오버셀/데드락 방지
 tags: [concurrency, database, locking, deadlock, transaction]
 timestamp: 2026-06-19T00:00:00Z
-source_projects: [shop]
+domain: [backend]
+sources: [shop]
 ---
 
 # 문제
@@ -16,10 +17,12 @@ source_projects: [shop]
 
 # 효과
 - 오버셀 **0**을 DB 차원에서 보장. 동시성 테스트가 결정적(N재고·M>N주문 → 정확히 N 성공).
-- 처리량은 상품 단위로 직렬화되지만 미니샵 규모엔 충분.
+- 처리량은 자원(상품) 단위로 직렬화되지만 소규모 트래픽엔 충분.
 
 # 검증
 - 동시성/락은 H2로 재현 불가 → [Testcontainers 실제 Postgres](testcontainers-real-db.md)로 검증.
 
-# 출처/적용
-- [shop](../cards/shop.md) ADR-2.
+# 적용 사례 (일반화)
+- 재고 홀드·결제 확정·복원이 같은 자원 행을 건드리는 커머스형 임계구역에 ADR로 채택 — 오버셀 0·데드락 0.
+
+> 출처 프로젝트는 frontmatter `sources` 참조 (`knowledge/cards/<프로젝트>.md`).

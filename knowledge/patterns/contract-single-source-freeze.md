@@ -3,7 +3,8 @@ type: Reusable Pattern
 title: API 계약 단일 소스 + 리더 동결 — 경계면 교착 방지
 tags: [api-contract, delegation, coordination, boundary]
 timestamp: 2026-06-19T00:00:00Z
-source_projects: [minesweeper, shop]
+domain: [process]
+sources: [minesweeper, shop]
 ---
 
 # 문제
@@ -15,6 +16,8 @@ source_projects: [minesweeper, shop]
 - 양쪽 동시 편집/상호 양보 금지.
 - **합의가 2회 교차/불일치하면 즉시 리더 에스컬레이션 → 리더가 값을 정해 파일(문서)에 동결**. 메시지로만 정하면 stale 재읽기로 또 뒤집힌다 — 파일이 권위.
 
-# 출처/적용
-- [minesweeper](../cards/minesweeper.md): leaderboard 래핑/best 경로 상호 양보 교착 → 파일 동결로 종료.
-- [shop](../cards/shop.md): 다자 계약(고객·셀러·어드민)에서 동일 규율 적용.
+# 적용 사례 (일반화)
+- 목록 응답 래핑/조회 경로 shape이 상호 양보로 2회 교차(swap)해 교착 → 계약 파일 동결로 종료.
+- 다자 계약(구매자·판매자·관리자처럼 역할이 셋 이상)에서도 동일 규율 적용.
+
+> 출처 프로젝트는 frontmatter `sources` 참조 (`knowledge/cards/<프로젝트>.md`).
