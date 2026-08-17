@@ -71,3 +71,12 @@ setup.sh       멱등 세팅
 ```bash
 node --test "knowledge/test/**/*.test.mjs" "scripts/test/**/*.test.mjs"
 ```
+
+## 평가 (지식 채팅 골든셋)
+
+```bash
+node knowledge/eval/run.mjs [--model sonnet|opus]
+```
+
+- `knowledge/eval/golden.json`의 질문을 실제 채팅에 던져, 답변에 기대 근거(파일명·키워드)가 포함되는지 검사합니다.
+- 케이스당 실제 `claude` 호출 1회(순차 실행)로 구독 할당량을 소모하므로 **자동 테스트에 포함되지 않는 수동 전용** 스크립트입니다.

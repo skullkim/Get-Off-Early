@@ -1,0 +1,27 @@
+[
+  {
+    "id": "cors-pattern",
+    "question": "CORS를 제대로 처리하는 방법을 정리한 패턴 문서가 있어? 있다면 어떤 문서야?",
+    "mustInclude": [["cors"]]
+  },
+  {
+    "id": "lock-ordering",
+    "question": "데드락을 피하려면 비관적 락을 어떻게 걸어야 한다고 정리돼 있지?",
+    "mustInclude": [["정렬", "ordering", "순서"]]
+  },
+  {
+    "id": "clock-injection",
+    "question": "테스트에서 시간 의존성을 결정적으로 만드는 패턴 이름이 뭐야?",
+    "mustInclude": [["clock"]]
+  },
+  {
+    "id": "card-projects",
+    "question": "지금 지식 카드가 있는 프로젝트 목록을 알려줘",
+    "mustInclude": [["todo"], ["shop", "미니샵"], ["minesweeper", "지뢰찾기"]]
+  },
+  {
+    "id": "e2e-why",
+    "question": "왜 curl 테스트만으로는 부족하고 실제 브라우저 E2E가 필요하다고 정리돼 있어?",
+    "mustInclude": [["브라우저", "browser"], ["cors", "curl", "프리플라이트"]]
+  }
+]
