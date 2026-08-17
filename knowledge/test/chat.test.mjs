@@ -4,7 +4,10 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { EventEmitter } from 'node:events';
-import { buildSystemPrompt, buildChatArgs, resolveModel, buildChatModels, chat, CHAT_MODELS } from '../web/chat.mjs';
+import {
+  buildSystemPrompt, buildChatArgs, resolveModel, buildChatModels, chat, CHAT_MODELS,
+  parseStreamLine, createStreamReader, chatStream,
+} from '../web/chat.mjs';
 
 function fixtureRoot() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'chat-'));
@@ -112,4 +115,143 @@ test('chat rejects with CHAT_TIMEOUT when the process outlives timeoutMs', async
     chat({ message: 'hi', root: fixtureRoot(), spawnFn, timeoutMs: 20 }),
     (e) => e.code === 'CHAT_TIMEOUT',
   );
+});
+
+// ---- streaming ----
+// Fixtures are trimmed copies of real `claude -p --output-format stream-json
+// --include-partial-messages --verbose` output (schema verified against the CLI).
+const LINE_INIT = JSON.stringify({ type: 'system', subtype: 'init', cwd: '/x', session_id: 'sess-1' });
+const LINE_DELTA_A = JSON.stringify({
+  type: 'stream_event',
+  event: { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: '안녕' } },
+  session_id: 'sess-1', parent_tool_use_id: null,
+});
+const LINE_DELTA_B = JSON.stringify({
+  type: 'stream_event',
+  event: { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: '하세요' } },
+  session_id: 'sess-1', parent_tool_use_id: null,
+});
+const LINE_THINKING = JSON.stringify({
+  type: 'stream_event',
+  event: { type: 'content_block_delta', index: 0, delta: { type: 'thinking_delta', thinking: '음…' } },
+  session_id: 'sess-1', parent_tool_use_id: null,
+});
+const LINE_ASSISTANT = JSON.stringify({
+  type: 'assistant',
+  message: { role: 'assistant', content: [{ type: 'text', text: '안녕하세요' }] },
+  session_id: 'sess-1',
+});
+const LINE_RESULT = JSON.stringify({
+  type: 'result', subtype: 'success', is_error: false, result: '안녕하세요', session_id: 'sess-1',
+});
+
+test('parseStreamLine extracts text deltas from stream_event lines', () => {
+  assert.deepEqual(parseStreamLine(LINE_DELTA_A), { kind: 'delta', text: '안녕' });
+});
+
+test('parseStreamLine extracts the final answer and session id from the result line', () => {
+  assert.deepEqual(parseStreamLine(LINE_RESULT), {
+    kind: 'result', answer: '안녕하세요', sessionId: 'sess-1', isError: false,
+  });
+});
+
+test('parseStreamLine surfaces the session id from the init line', () => {
+  assert.deepEqual(parseStreamLine(LINE_INIT), { kind: 'session', sessionId: 'sess-1' });
+});
+
+test('parseStreamLine ignores non-text deltas, whole-message echoes and junk', () => {
+  assert.equal(parseStreamLine(LINE_THINKING), null);    // thinking is not answer text
+  assert.equal(parseStreamLine(LINE_ASSISTANT), null);   // would duplicate the deltas
+  assert.equal(parseStreamLine(''), null);
+  assert.equal(parseStreamLine('   '), null);
+  assert.equal(parseStreamLine('not json at all'), null);
+});
+
+test('createStreamReader reassembles a JSON line split across chunks', () => {
+  const seen = [];
+  const reader = createStreamReader({ onDelta: (t) => seen.push(t) });
+  const half = Math.floor(LINE_DELTA_A.length / 2);
+  reader.push(LINE_DELTA_A.slice(0, half));           // no newline yet → nothing emitted
+  assert.deepEqual(seen, []);
+  reader.push(LINE_DELTA_A.slice(half) + '\n');
+  assert.deepEqual(seen, ['안녕']);
+});
+
+test('createStreamReader emits deltas in order and captures the result', () => {
+  const seen = [];
+  const reader = createStreamReader({ onDelta: (t) => seen.push(t) });
+  reader.push(`${LINE_INIT}\n${LINE_DELTA_A}\n`);
+  reader.push(`${LINE_THINKING}\n${LINE_DELTA_B}\n${LINE_ASSISTANT}\n`);
+  reader.push(LINE_RESULT);        // no trailing newline — flushed by end()
+  reader.end();
+  assert.deepEqual(seen, ['안녕', '하세요']);
+  assert.deepEqual(reader.result(), { answer: '안녕하세요', sessionId: 'sess-1', sawResult: true });
+});
+
+test('createStreamReader falls back to accumulated deltas when no result line arrives', () => {
+  const reader = createStreamReader({});
+  reader.push(`${LINE_INIT}\n${LINE_DELTA_A}\n${LINE_DELTA_B}\n`);
+  reader.end();
+  assert.deepEqual(reader.result(), { answer: '안녕하세요', sessionId: 'sess-1', sawResult: false });
+});
+
+test('buildChatArgs stream mode asks the CLI for NDJSON events with partial messages', () => {
+  const args = buildChatArgs({ message: 'hi', sessionId: null, model: 'claude-sonnet-4-6', systemPrompt: 'SYS', stream: true });
+  assert.equal(args[args.indexOf('--output-format') + 1], 'stream-json');
+  assert.equal(args.includes('--include-partial-messages'), true);   // required for text deltas
+  assert.equal(args.includes('--verbose'), true);                    // CLI requires it with -p + stream-json
+});
+
+test('buildChatArgs stays on single-shot json when stream is not requested', () => {
+  const args = buildChatArgs({ message: 'hi', sessionId: null, model: 'claude-sonnet-4-6', systemPrompt: 'SYS' });
+  assert.equal(args[args.indexOf('--output-format') + 1], 'json');
+  assert.equal(args.includes('--include-partial-messages'), false);
+});
+
+test('chatStream streams deltas then resolves with the answer and session id', async () => {
+  const spawnFn = () => {
+    const child = fakeSpawnChild();
+    setImmediate(() => {
+      child.stdout.emit('data', Buffer.from(`${LINE_INIT}\n${LINE_DELTA_A}\n`));
+      child.stdout.emit('data', Buffer.from(`${LINE_DELTA_B}\n${LINE_RESULT}\n`));
+      child.emit('close', 0);
+    });
+    return child;
+  };
+  const seen = [];
+  const out = await chatStream({ message: 'hi', root: fixtureRoot(), spawnFn, onDelta: (t) => seen.push(t) });
+  assert.deepEqual(seen, ['안녕', '하세요']);
+  assert.deepEqual(out, { answer: '안녕하세요', sessionId: 'sess-1' });
+});
+
+test('chatStream rejects with CLAUDE_NOT_FOUND when the claude binary is missing', async () => {
+  const spawnFn = () => {
+    const child = fakeSpawnChild();
+    setImmediate(() => child.emit('error', Object.assign(new Error('spawn claude ENOENT'), { code: 'ENOENT' })));
+    return child;
+  };
+  await assert.rejects(
+    chatStream({ message: 'hi', root: fixtureRoot(), spawnFn }),
+    (e) => e.code === 'CLAUDE_NOT_FOUND',
+  );
+});
+
+test('chatStream rejects with CHAT_TIMEOUT when the process outlives timeoutMs', async () => {
+  const spawnFn = () => fakeSpawnChild();  // never closes
+  await assert.rejects(
+    chatStream({ message: 'hi', root: fixtureRoot(), spawnFn, timeoutMs: 20 }),
+    (e) => e.code === 'CHAT_TIMEOUT',
+  );
+});
+
+test('chatStream rejects when the CLI exits non-zero, quoting stderr', async () => {
+  const spawnFn = () => {
+    const child = fakeSpawnChild();
+    setImmediate(() => {
+      child.stderr.emit('data', Buffer.from('boom'));
+      child.emit('close', 1);
+    });
+    return child;
+  };
+  await assert.rejects(chatStream({ message: 'hi', root: fixtureRoot(), spawnFn }), /exited 1.*boom/s);
 });

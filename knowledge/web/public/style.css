@@ -37,9 +37,16 @@ body { margin: 0; display: flex; min-height: 100vh; font: 14px/1.5 -apple-system
 .msg-user { align-self: flex-end; background: #2563eb; color: #fff; }
 .msg-assistant { align-self: flex-start; background: #f1f4f9; }
 .msg-assistant.pending { color: #6b7280; font-style: italic; }
+/* 스트리밍 중에는 마크다운 미변환 원문이라 줄바꿈을 살려야 읽힌다 */
+.msg.streaming { white-space: pre-wrap; }
 .msg-assistant p:first-child { margin-top: 0; }
 .msg-assistant p:last-child { margin-bottom: 0; }
 .msg-assistant pre { background: #e9edf3; padding: 8px; border-radius: 6px; overflow-x: auto; }
+.suggestions { display: flex; flex-wrap: wrap; gap: 6px; align-self: flex-start; max-width: 80%; }
+.suggest-chip { font-size: 12px; text-align: left; padding: 6px 11px; border: 1px solid #cbd3e0; border-radius: 999px; background: #fff; color: #1f3a8a; cursor: pointer; font-family: inherit; }
+.suggest-chip:hover { background: #e6eefe; border-color: #2563eb; }
+.chat-new { flex: none; margin-left: 8px; font-size: 13px; padding: 6px 10px; border: 1px solid #cbd3e0; border-radius: 8px; background: #fff; cursor: pointer; }
+.chat-new:hover { background: #eef2f9; }
 #chat-form { display: flex; gap: 8px; position: sticky; bottom: 0; background: #fff; padding: 8px 0; }
 #chat-input { flex: 1; padding: 10px 12px; border: 1px solid #cbd3e0; border-radius: 8px; }
 #chat-form button { padding: 10px 16px; border: none; background: #2563eb; color: #fff; border-radius: 8px; cursor: pointer; }

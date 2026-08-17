@@ -193,16 +193,45 @@ document.getElementById('search').addEventListener('input', (e) => {
   }, 250);
 });
 
-// ---- Knowledge chat (memory-resident; cleared on refresh) ----
+// ---- Knowledge chat ----
 const CHAT_MODEL_OPTIONS = [['sonnet', 'Sonnet (빠름·기본)'], ['opus', 'Opus (고품질)']];
-const chatState = { sessionId: null, messages: [], pending: false, model: localStorage.getItem('chatModel') || 'sonnet' };
+
+// 세션 id는 localStorage에 남긴다 — 새로고침해도 claude 세션이 이어지므로
+// (--resume) 앞선 문답의 맥락을 잃지 않는다. 화면의 말풍선은 메모리에만 있어
+// 복원되지 않지만, 대화 자체는 서버 쪽 세션에 남아 있다.
+const SESSION_KEY = 'chatSessionId';
+function loadSessionId() {
+  try { return localStorage.getItem(SESSION_KEY) || null; } catch { return null; }
+}
+function saveSessionId(id) {
+  try {
+    if (id) localStorage.setItem(SESSION_KEY, id);
+    else localStorage.removeItem(SESSION_KEY);
+  } catch { /* 사파리 프라이빗 모드 등 — 저장 실패해도 채팅은 계속 */ }
+}
+
+const chatState = {
+  sessionId: loadSessionId(), messages: [], pending: false,
+  model: localStorage.getItem('chatModel') || 'sonnet',
+  suggestions: null,   // null = 아직 미로딩, [] = 로딩 완료·비어 있음
+};
+
+// 빈 채팅 화면은 "무엇을 물어볼 수 있는지" 단서가 없다. 서버가 골든셋 질문을
+// 내려주면 클릭 한 번으로 첫 질문을 던질 수 있게 칩으로 노출한다(발견 가능성).
+async function loadSuggestions() {
+  if (chatState.suggestions) return;
+  try { chatState.suggestions = await (await fetch('/api/suggestions')).json(); }
+  catch { chatState.suggestions = []; }
+  renderChatLog();
+}
 
 function showChat() {
   const main = document.getElementById('main');
   main.innerHTML = '';
   const bar = document.createElement('div'); bar.className = 'topbar';
   const back = document.createElement('button'); back.className = 'back'; back.textContent = '← 뒤로'; back.onclick = goBack;
-  const label = document.createElement('span'); label.className = 'path'; label.textContent = '💬 지식 채팅 — 리프레시 전까지 대화 유지';
+  const label = document.createElement('span'); label.className = 'path';
+  label.textContent = chatState.sessionId ? '💬 지식 채팅 — 이전 대화 이어감' : '💬 지식 채팅';
   const model = document.createElement('select'); model.id = 'chat-model'; model.className = 'chat-model';
   model.title = '응답 모델 선택 (다음 질문부터 적용)';
   for (const [key, name] of CHAT_MODEL_OPTIONS) {
@@ -211,7 +240,12 @@ function showChat() {
     model.appendChild(opt);
   }
   model.onchange = () => { chatState.model = model.value; localStorage.setItem('chatModel', model.value); };
-  bar.appendChild(back); bar.appendChild(label); bar.appendChild(model); main.appendChild(bar);
+  const fresh = document.createElement('button');
+  fresh.type = 'button'; fresh.className = 'chat-new'; fresh.textContent = '새 대화';
+  fresh.title = '세션을 버리고 처음부터 다시 묻습니다';
+  fresh.onclick = resetChat;
+  bar.appendChild(back); bar.appendChild(label); bar.appendChild(model); bar.appendChild(fresh);
+  main.appendChild(bar);
 
   const log = document.createElement('div'); log.id = 'chat-log'; main.appendChild(log);
 
@@ -223,7 +257,16 @@ function showChat() {
   main.appendChild(form);
 
   renderChatLog();
+  loadSuggestions();
   input.focus();
+}
+
+function resetChat() {
+  chatState.sessionId = null;
+  chatState.messages = [];
+  chatState.pending = false;
+  saveSessionId(null);
+  showChat();
 }
 
 function renderChatLog() {
@@ -232,52 +275,116 @@ function renderChatLog() {
   log.innerHTML = '';
   if (!chatState.messages.length && !chatState.pending) {
     const hint = document.createElement('div'); hint.className = 'msg msg-assistant';
-    hint.textContent = '프로젝트 이력·아키텍처 결정·패턴·gotcha에 대해 물어보세요. 예: "shop의 동시성 어떻게 처리했어?"';
+    hint.textContent = '프로젝트 이력·아키텍처 결정·패턴·gotcha에 대해 물어보세요.';
     log.appendChild(hint);
+    if (chatState.suggestions && chatState.suggestions.length) {
+      const wrap = document.createElement('div'); wrap.className = 'suggestions';
+      for (const q of chatState.suggestions) {
+        const chip = document.createElement('button');
+        chip.type = 'button'; chip.className = 'suggest-chip'; chip.textContent = q;
+        chip.onclick = () => sendChat(q);
+        wrap.appendChild(chip);
+      }
+      log.appendChild(wrap);
+    }
   }
   for (const m of chatState.messages) {
     const el = document.createElement('div'); el.className = 'msg msg-' + m.role;
-    if (m.role === 'assistant') el.innerHTML = marked.parse(m.text);
-    else el.textContent = m.text;
-    log.appendChild(el);
-  }
-  if (chatState.pending) {
-    const el = document.createElement('div'); el.className = 'msg msg-assistant pending'; el.textContent = '생각 중…';
+    if (m.streaming) {
+      // 도착한 만큼 원문 그대로 보여준다. 마크다운은 완료 시점에 한 번만 렌더한다
+      // (반쯤 온 마크다운을 파싱하면 표·코드블록이 깨져 보인다).
+      el.id = 'chat-streaming';
+      el.classList.add('streaming');
+      el.textContent = m.text || '생각 중…';
+      if (!m.text) el.classList.add('pending');
+    } else if (m.role === 'assistant') {
+      el.innerHTML = marked.parse(m.text);
+    } else {
+      el.textContent = m.text;
+    }
     log.appendChild(el);
   }
   log.scrollTop = log.scrollHeight;
 }
 
+// 델타마다 로그 전체를 다시 그리지 않고 말풍선 하나만 갱신한다.
+function paintDelta(msg) {
+  const el = document.getElementById('chat-streaming');
+  if (!el) return renderChatLog();
+  el.classList.remove('pending');
+  el.textContent = msg.text;
+  const log = document.getElementById('chat-log');
+  if (log) log.scrollTop = log.scrollHeight;
+}
+
+// 서버가 보내는 NDJSON(줄당 JSON 1개)을 읽는다. 청크 경계가 줄 중간에 떨어질
+// 수 있으므로 개행이 나온 줄만 처리하고 나머지는 버퍼에 남긴다.
+async function readChatStream(res, onDelta) {
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = '';
+  let done = null;
+  for (;;) {
+    const { value, done: closed } = await reader.read();
+    if (value) buf += decoder.decode(value, { stream: true });
+    const lines = buf.split('\n');
+    buf = closed ? '' : lines.pop();
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      let ev;
+      try { ev = JSON.parse(line); } catch { continue; }
+      if (ev.type === 'delta') onDelta(ev.text);
+      else if (ev.type === 'done') done = ev;
+      else if (ev.type === 'error') throw new Error(ev.error);
+    }
+    if (closed) return done;
+  }
+}
+
 async function sendChat(text) {
   if (!text.trim() || chatState.pending) return;
   chatState.messages.push({ role: 'user', text });
+  // 답변 말풍선을 먼저 만들어 두고 델타가 올 때마다 채운다 — "생각 중…"만
+  // 떠 있는 무한 로딩 대신 첫 토큰부터 진행 상황이 보인다.
+  const reply = { role: 'assistant', text: '', streaming: true };
+  chatState.messages.push(reply);
   chatState.pending = true;
   renderChatLog();
+
+  const finish = () => { reply.streaming = false; chatState.pending = false; renderChatLog(); };
+  const fail = (msg) => {
+    reply.text = (reply.text ? reply.text + '\n\n' : '') + msg;
+    finish();
+  };
+
   try {
     const headers = { 'content-type': 'application/json' };
     const token = localStorage.getItem('chatToken');
     if (token) headers['x-chat-token'] = token;
     const res = await fetch('/api/chat', {
       method: 'POST', headers,
-      body: JSON.stringify({ message: text, sessionId: chatState.sessionId, model: chatState.model }),
+      body: JSON.stringify({ message: text, sessionId: chatState.sessionId, model: chatState.model, stream: true }),
     });
     if (res.status === 401) {
       chatState.pending = false;
-      chatState.messages.pop();           // remove optimistic user msg before retry
+      chatState.messages.splice(-2, 2);   // remove the optimistic user+reply pair before retry
       renderChatLog();
       const t = prompt('CHAT_TOKEN 필요 — 토큰을 입력하세요:');
       if (t) { localStorage.setItem('chatToken', t); return sendChat(text); }
       return;
     }
-    const data = await res.json();
-    chatState.pending = false;
-    if (data.error) chatState.messages.push({ role: 'assistant', text: '⚠️ 오류: ' + data.error });
-    else { chatState.messages.push({ role: 'assistant', text: data.answer }); chatState.sessionId = data.sessionId; }
-    renderChatLog();
+    if (!res.ok) {                        // 400·429 등: 스트림이 열리기 전에 거절된 경우
+      const data = await res.json().catch(() => ({}));
+      return fail('⚠️ 오류: ' + (data.error || res.status));
+    }
+    const done = await readChatStream(res, (delta) => { reply.text += delta; paintDelta(reply); });
+    if (done) {
+      if (done.answer) reply.text = done.answer;   // 완성본으로 교체(델타 유실 대비)
+      if (done.sessionId) { chatState.sessionId = done.sessionId; saveSessionId(done.sessionId); }
+    }
+    finish();
   } catch (e) {
-    chatState.pending = false;
-    chatState.messages.push({ role: 'assistant', text: '⚠️ 요청 실패: ' + e });
-    renderChatLog();
+    fail('⚠️ 요청 실패: ' + (e && e.message ? e.message : e));
   }
 }
 

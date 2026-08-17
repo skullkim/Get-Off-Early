@@ -25,7 +25,7 @@ node knowledge/web/server.mjs    # 지식 웹앱 (기본 http://localhost:4178)
   skills/      8 스킬 (build-project 오케스트레이터 + 절차 스킬들)
   retro/       자가발전 회고 로그
 knowledge/
-  web/         지식 웹앱 (검색 · 파일 열람 · claude -p 기반 채팅)
+  web/         지식 웹앱 (검색 · 파일 열람 · claude -p 기반 스트리밍 채팅)
   cards/       프로젝트별 지식 카드   patterns/  교차 프로젝트 재사용 패턴
   ingest.mjs   외부 프로젝트 → 지식 카드 생성
 scripts/       매니페스트 clone · 카드 ingest 오케스트레이션
@@ -51,6 +51,12 @@ setup.sh       멱등 세팅
 - 프로젝트 소스는 메인 레포에 담지 않고 **git 링크로** 연결됩니다(setup이 각자 위치로 clone, `.git/info/exclude`로 추적 제외).
 - 하네스로 만들지 않은 외부 프로젝트는 `./setup.sh --ingest` 또는 `node knowledge/ingest.mjs <name>` 으로 지식 카드를 생성하세요(코드 분석 → 카드).
 - 포크하는 사람은 `projects.example.json`을 참고해 목록만 교체하면 됩니다.
+
+## 지식 채팅 UX
+
+- **스트리밍 응답**: 답변이 생성되는 대로 토큰 단위로 표시됩니다(무한 로딩 없음). 서버는 `POST /api/chat`에 `stream: true`가 오면 NDJSON(`{"type":"delta"|"done"|"error"}` 줄 단위)으로 응답하고, `stream` 없이 호출하면 기존 단발 JSON 응답 그대로입니다.
+- **추천 질문**: 빈 채팅 화면에 `GET /api/suggestions`(골든셋 질문 문자열)의 칩이 뜹니다. 클릭하면 바로 전송됩니다.
+- **세션 유지**: 세션 id를 localStorage에 보관하므로 새로고침해도 이전 대화 맥락이 이어집니다(`claude --resume`). 상단 **새 대화** 버튼으로 초기화합니다.
 
 ## 의존성
 

@@ -4,7 +4,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { buildIndex, classifyFile } from '../index-core.mjs';
-import { chat } from './chat.mjs';
+import { chat, chatStream } from './chat.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const ROOT = path.resolve(__dirname, '..', '..');
@@ -35,6 +35,11 @@ function sendText(res, code, txt) {
 function sendFile(res, abs) {
   res.writeHead(200, { 'content-type': mimeFor(abs) });
   fs.createReadStream(abs).pipe(res);
+}
+// One JSON object per line (NDJSON) — the browser reads it with a plain fetch
+// body reader, no SSE framing to strip and no EventSource (which cannot POST).
+function writeEvent(res, obj) {
+  res.write(JSON.stringify(obj) + '\n');
 }
 
 const SEARCH_EXCLUDE = ['node_modules', 'build', '.gradle', 'dist', '.git', '.idea'];
@@ -87,6 +92,25 @@ export function runSearch(root, q, limit = 100) {
   return out;
 }
 
+// An empty chat box gives no signal about what the knowledge base can answer.
+// The golden set is already a curated list of answerable questions, so it
+// doubles as the suggestion source. Only the question text is exposed — the
+// eval internals (id, mustInclude keywords) stay server-side, otherwise the
+// grading keywords would leak into the UI.
+export function readSuggestions(root) {
+  const file = path.join(root, 'knowledge', 'eval', 'golden.json');
+  if (!fs.existsSync(file)) return [];
+  try {
+    const cases = JSON.parse(fs.readFileSync(file, 'utf8'));
+    if (!Array.isArray(cases)) return [];
+    return cases
+      .map((c) => c && c.question)
+      .filter((q) => typeof q === 'string' && q.trim());
+  } catch {
+    return [];   // a broken golden set must not take the chat page down
+  }
+}
+
 function readBody(req) {
   return new Promise((resolve) => {
     let data = '';
@@ -113,7 +137,9 @@ export function chatErrorResponse(e) {
   return { status: 500, body: { error: String((e && e.message) || e) } };
 }
 
-export function handleRequest(root, { chatFn = chat, gate = createGate(CHAT_MAX_CONCURRENT) } = {}) {
+export function handleRequest(root, {
+  chatFn = chat, chatStreamFn = chatStream, gate = createGate(CHAT_MAX_CONCURRENT),
+} = {}) {
   return (req, res) => {
     const url = new URL(req.url, 'http://localhost');
     if (url.pathname === '/api/index') return sendJson(res, 200, buildIndex(root));
@@ -125,6 +151,7 @@ export function handleRequest(root, { chatFn = chat, gate = createGate(CHAT_MAX_
     if (url.pathname === '/api/search') {
       return sendJson(res, 200, runSearch(root, url.searchParams.get('q') || ''));
     }
+    if (url.pathname === '/api/suggestions') return sendJson(res, 200, readSuggestions(root));
     if (url.pathname === '/api/chat' && req.method === 'POST') {
       const token = process.env.CHAT_TOKEN;
       if (token && req.headers['x-chat-token'] !== token) return sendText(res, 401, 'Unauthorized');
@@ -133,12 +160,32 @@ export function handleRequest(root, { chatFn = chat, gate = createGate(CHAT_MAX_
         try { body = JSON.parse(raw || '{}'); } catch { return sendJson(res, 400, { error: 'invalid json' }); }
         if (!body.message || !String(body.message).trim()) return sendJson(res, 400, { error: 'message required' });
         if (!gate.tryAcquire()) return sendJson(res, 429, { error: 'too many concurrent chats — retry shortly' });
+        const args = { message: body.message, sessionId: body.sessionId, model: body.model, root };
         try {
-          const result = await chatFn({ message: body.message, sessionId: body.sessionId, model: body.model, root });
-          sendJson(res, 200, result);
+          if (!body.stream) {
+            sendJson(res, 200, await chatFn(args));    // legacy single-shot response
+          } else {
+            // Validation and the gate have already run, so the status code is
+            // decided: commit to 200 and stream. Anything that fails from here
+            // on is reported as an in-stream `error` event, since the headers
+            // are gone by then.
+            res.writeHead(200, {
+              'content-type': 'application/x-ndjson; charset=utf-8',
+              'cache-control': 'no-cache',
+              'x-accel-buffering': 'no',               // don't let a reverse proxy re-buffer the deltas
+            });
+            const result = await chatStreamFn({ ...args, onDelta: (text) => writeEvent(res, { type: 'delta', text }) });
+            writeEvent(res, { type: 'done', answer: result.answer, sessionId: result.sessionId });
+            res.end();
+          }
         } catch (e) {
           const { status, body: errBody } = chatErrorResponse(e);
-          sendJson(res, status, errBody);
+          if (res.headersSent) {
+            writeEvent(res, { type: 'error', error: errBody.error, status });
+            res.end();
+          } else {
+            sendJson(res, status, errBody);
+          }
         } finally {
           gate.release();
         }
