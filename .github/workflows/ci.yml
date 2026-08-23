@@ -1,0 +1,19 @@
+# 머지·푸시마다 전체 테스트를 자동 실행하는 회귀 방어선.
+# npm 의존성이 0이라 설치 단계가 없다 — checkout + node + test 3스텝.
+# claude spawn이 필요한 검증(골든셋 평가·ingest)은 수동 전용이라 여기 없다.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --test "knowledge/test/**/*.test.mjs" "scripts/test/**/*.test.mjs"

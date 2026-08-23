@@ -81,6 +81,8 @@ setup.sh       멱등 세팅
 node --test "knowledge/test/**/*.test.mjs" "scripts/test/**/*.test.mjs"
 ```
 
+- 같은 스위트가 GitHub Actions CI(`.github/workflows/ci.yml`)에서 push·PR마다 자동 실행됩니다 — 회귀는 머지 전에 걸립니다.
+
 ## 평가 (지식 채팅 골든셋)
 
 ```bash
