@@ -84,8 +84,10 @@ node --test "knowledge/test/**/*.test.mjs" "scripts/test/**/*.test.mjs"
 ## 평가 (지식 채팅 골든셋)
 
 ```bash
-node knowledge/eval/run.mjs [--model sonnet|opus]
+node knowledge/eval/run.mjs [--model sonnet|opus] [--stream] [--repeat N]
 ```
 
-- `knowledge/eval/golden.json`의 질문을 실제 채팅에 던져, 답변에 기대 근거(파일명·키워드)가 포함되는지 검사합니다.
-- 케이스당 실제 `claude` 호출 1회(순차 실행)로 구독 할당량을 소모하므로 **자동 테스트에 포함되지 않는 수동 전용** 스크립트입니다.
+- `knowledge/eval/golden.json`의 질문(10문항 — 접지·패러프레이즈·분야 라우팅·미지 프로젝트 거절 포함)을 실제 채팅에 던져, 답변에 기대 근거가 포함되는지 검사합니다.
+- `--stream`: 스트리밍 경로(chatStream — UI의 기본 경로)로 평가. `--repeat N`: 케이스당 N회 실행해 일관성 측정(전부 통과해야 합격, `[2/3]`식 표기).
+- 케이스당 실제 `claude` 호출(순차)로 구독 할당량을 소모하므로 **자동 테스트에 포함되지 않는 수동 전용** 스크립트입니다.
+- **살아있는 명세 규칙**: 지식 베이스에 내용·기능이 추가되면 golden.json에 대응 케이스도 추가합니다 — 평가셋은 고정 벤치마크가 아니라 시스템 능력을 따라 자라는 명세입니다.

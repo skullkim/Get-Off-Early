@@ -16,17 +16,32 @@ export function evaluateAnswer(answer, mustInclude) {
 
 // Sequential on purpose: parallel runs would race the subscription quota and
 // the machine the same way unbounded /api/chat did before the gate.
-export async function runEval(cases, chatFn, { root, model } = {}) {
+// repeat>1 measures consistency (ch9): the model is probabilistic, so a case
+// only passes when EVERY attempt passes — flaky grounding surfaces as "2/3".
+export async function runEval(cases, chatFn, { root, model, repeat = 1 } = {}) {
   const results = [];
   for (const c of cases) {
     const t0 = Date.now();
-    try {
-      const { answer } = await chatFn({ message: c.question, root, model });
-      const { passed, missing } = evaluateAnswer(answer, c.mustInclude);
-      results.push({ id: c.id, passed, missing, answer, ms: Date.now() - t0 });
-    } catch (e) {
-      results.push({ id: c.id, passed: false, error: String((e && e.message) || e), ms: Date.now() - t0 });
+    const attempts = [];
+    for (let i = 0; i < repeat; i++) {
+      try {
+        const { answer } = await chatFn({ message: c.question, root, model });
+        attempts.push({ ...evaluateAnswer(answer, c.mustInclude), answer });
+      } catch (e) {
+        attempts.push({ passed: false, missing: [], error: String((e && e.message) || e) });
+      }
     }
+    const passCount = attempts.filter((a) => a.passed).length;
+    const last = attempts[attempts.length - 1];
+    results.push({
+      id: c.id,
+      passed: passCount === repeat,
+      missing: last.missing,
+      ...(last.error ? { error: last.error } : {}),
+      ...(repeat > 1 ? { consistency: `${passCount}/${repeat}` } : {}),
+      answer: last.answer,
+      ms: Date.now() - t0,
+    });
   }
   const passed = results.filter((r) => r.passed).length;
   return { total: cases.length, passed, failed: cases.length - passed, results };
@@ -35,12 +50,20 @@ export async function runEval(cases, chatFn, { root, model } = {}) {
 export function formatReport({ total, passed, results }) {
   const lines = results.map((r) => {
     const mark = r.passed ? '✓' : '✗';
+    const cons = r.consistency ? ` [${r.consistency}]` : '';
     const detail = r.error ? `error: ${r.error}`
       : r.passed ? '' : `missing: ${r.missing.map((g) => g.join('|')).join(', ')}`;
-    return `${mark} ${r.id} (${(r.ms / 1000).toFixed(1)}s)${detail ? ' — ' + detail : ''}`;
+    return `${mark} ${r.id}${cons} (${(r.ms / 1000).toFixed(1)}s)${detail ? ' — ' + detail : ''}`;
   });
   lines.push(`${passed}/${total} passed`);
   return lines.join('\n');
+}
+
+// --stream evaluates through the streaming twin (the UI's primary path since
+// the ch3 UX work) — same contract, different transport. Living-spec rule:
+// the eval should cover the path users actually hit.
+export function selectChatFn(argv, { chat, chatStream }) {
+  return argv.includes('--stream') ? chatStream : chat;
 }
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -56,10 +79,13 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.a
   fs.writeFileSync(path.join(__dirname, '..', 'index.json'), renderJson(index));
   fs.writeFileSync(path.join(__dirname, '..', 'INDEX.md'), renderMarkdown(index));
 
-  const { chat } = await import('../web/chat.mjs');
+  const { chat, chatStream } = await import('../web/chat.mjs');
+  const chatFn = selectChatFn(process.argv, { chat, chatStream });
+  const repeatIdx = process.argv.indexOf('--repeat');
+  const repeat = repeatIdx > -1 ? Math.max(1, Number(process.argv[repeatIdx + 1]) || 1) : 1;
   const golden = JSON.parse(fs.readFileSync(path.join(__dirname, 'golden.json'), 'utf8'));
-  console.log(`knowledge chat eval: ${golden.length} cases (sequential, real claude spawns)`);
-  const summary = await runEval(golden, chat, { root, model });
+  console.log(`knowledge chat eval: ${golden.length} cases × ${repeat}회${chatFn === chatStream ? ' (streaming path)' : ''} — sequential, real claude spawns`);
+  const summary = await runEval(golden, chatFn, { root, model, repeat });
   console.log(formatReport(summary));
   process.exitCode = summary.failed > 0 ? 1 : 0;
 }

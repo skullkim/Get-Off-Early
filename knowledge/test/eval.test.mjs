@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { evaluateAnswer, runEval, formatReport } from '../eval/run.mjs';
+import { evaluateAnswer, runEval, formatReport, selectChatFn } from '../eval/run.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -57,6 +57,40 @@ test('formatReport shows per-case marks and the pass count', () => {
   assert.match(report, /✓ a/);
   assert.match(report, /✗ b/);
   assert.match(report, /1\/2/);
+});
+
+test('runEval defaults to a single attempt per case', async () => {
+  let calls = 0;
+  const chatFn = async () => { calls++; return { answer: 'cors 문서가 있다', sessionId: 's' }; };
+  const summary = await runEval([{ id: 'a', question: 'q', mustInclude: [['cors']] }], chatFn, { root: '/tmp' });
+  assert.equal(calls, 1);
+  assert.equal(summary.results[0].passed, true);
+  assert.equal(summary.results[0].consistency, undefined);   // repeat 없으면 표기도 없음
+});
+
+test('runEval with repeat runs each case N times and requires all passes (consistency)', async () => {
+  let calls = 0;
+  // 2번째 시도만 엉뚱한 답 → 확률적 비일관 시뮬레이션
+  const chatFn = async () => { calls++; return { answer: calls === 2 ? '엉뚱한 답' : 'cors 문서', sessionId: 's' }; };
+  const summary = await runEval([{ id: 'a', question: 'q', mustInclude: [['cors']] }], chatFn, { root: '/tmp', repeat: 3 });
+  assert.equal(calls, 3);
+  assert.equal(summary.results[0].passed, false);            // 3회 중 1회라도 실패 = 비일관 → 실패
+  assert.equal(summary.results[0].consistency, '2/3');
+  assert.equal(summary.failed, 1);
+});
+
+test('formatReport shows consistency when repeat was used', () => {
+  const report = formatReport({
+    total: 1, passed: 0, failed: 1,
+    results: [{ id: 'a', passed: false, missing: [], consistency: '2/3', ms: 900 }],
+  });
+  assert.match(report, /2\/3/);
+});
+
+test('selectChatFn picks the streaming path only with --stream', () => {
+  const chat = () => {}, chatStream = () => {};
+  assert.equal(selectChatFn(['node', 'run.mjs'], { chat, chatStream }), chat);
+  assert.equal(selectChatFn(['node', 'run.mjs', '--stream'], { chat, chatStream }), chatStream);
 });
 
 test('golden.json cases all have id, question, and non-empty mustInclude groups', () => {
