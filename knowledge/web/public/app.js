@@ -130,6 +130,20 @@ function renderRoute() {
   }
 }
 
+// 조회 API도 CHAT_TOKEN 게이트를 통과해야 한다(서버와 대칭). 401이면 채팅과
+// 같은 방식으로 토큰을 물어 한 번 재시도한다.
+async function apiFetch(url) {
+  const headers = {};
+  const token = localStorage.getItem('chatToken');
+  if (token) headers['x-chat-token'] = token;
+  let res = await fetch(url, { headers });
+  if (res.status === 401) {
+    const t = prompt('CHAT_TOKEN 필요 — 토큰을 입력하세요:');
+    if (t) { localStorage.setItem('chatToken', t); return apiFetch(url); }
+  }
+  return res;
+}
+
 async function showFile(relPath) {
   const main = document.getElementById('main');
   const ext = relPath.split('.').pop().toLowerCase();
@@ -142,16 +156,19 @@ async function showFile(relPath) {
   window.scrollTo(0, 0);
 
   if (ext === 'png' || ext === 'svg') {
+    // img.src는 헤더를 못 실으므로 토큰 게이트를 통과하려면 blob으로 받는다
+    const imgRes = await apiFetch(`/api/file?path=${encodeURIComponent(relPath)}`);
     const img = document.createElement('img');
-    img.src = `/api/file?path=${encodeURIComponent(relPath)}`; img.style.maxWidth = '100%';
+    img.src = URL.createObjectURL(await imgRes.blob()); img.style.maxWidth = '100%';
     main.appendChild(img); return;
   }
-  const text = await (await fetch(`/api/file?path=${encodeURIComponent(relPath)}`)).text();
+  const text = await (await apiFetch(`/api/file?path=${encodeURIComponent(relPath)}`)).text();
   if (ext === 'md') {
     const div = document.createElement('div');
     // strip YAML frontmatter from display (structured fields already shown elsewhere)
     const body = text.replace(/^---\n[\s\S]*?\n---\n?/, '');
-    div.innerHTML = marked.parse(body);
+    // 외부 프로젝트도 ingest·열람하는 구조라 마크다운 출력은 새니타이즈한다
+    div.innerHTML = DOMPurify.sanitize(marked.parse(body));
     // make in-content graph links (relative .md) navigate via the router
     div.querySelectorAll('a[href]').forEach((a) => {
       const href = a.getAttribute('href');
@@ -170,8 +187,9 @@ async function showFile(relPath) {
 
 async function showSearch(q) {
   const main = document.getElementById('main');
-  const hits = await (await fetch(`/api/search?q=${encodeURIComponent(q)}`)).json();
-  main.innerHTML = `<div class="meta-bar">"${q}" 본문 매치 ${hits.length}건</div>`;
+  const hits = await (await apiFetch(`/api/search?q=${encodeURIComponent(q)}`)).json();
+  const safeQ = String(q).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+  main.innerHTML = `<div class="meta-bar">"${safeQ}" 본문 매치 ${hits.length}건</div>`;
   for (const h of hits) {
     const el = document.createElement('div'); el.className = 'search-hit';
     el.innerHTML = `<span class="loc">[${h.category}] ${h.path}:${h.line}</span><br>${h.text.replace(/</g, '&lt;')}`;

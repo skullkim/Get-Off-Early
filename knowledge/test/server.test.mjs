@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { createServer, safeResolve, runSearch, createGate, chatErrorResponse, readSuggestions, ROOT } from '../web/server.mjs';
+import { createServer, safeResolve, runSearch, createGate, chatErrorResponse, readSuggestions, isDeniedPath, ROOT } from '../web/server.mjs';
 
 let base;
 let server;
@@ -53,6 +53,31 @@ test('GET /api/search returns matches array', async () => {
   const res = await fetch(`${base}/api/search?q=Knowledge`);
   assert.equal(res.status, 200);
   assert.equal(Array.isArray(await res.json()), true);
+});
+
+test('isDeniedPath flags any dot segment (.git·.claude·.env …)', () => {
+  assert.equal(isDeniedPath('.git/config'), true);
+  assert.equal(isDeniedPath('.claude/settings.local.json'), true);
+  assert.equal(isDeniedPath('some/dir/.env'), true);
+  assert.equal(isDeniedPath('knowledge/INDEX.md'), false);
+  assert.equal(isDeniedPath('CLAUDE.md'), false);
+});
+
+test('GET /api/file blocks dot-segment paths with 403 regardless of token', async () => {
+  assert.equal((await fetch(`${base}/api/file?path=.git/config`)).status, 403);          // 실제 존재하는 파일
+  assert.equal((await fetch(`${base}/api/file?path=.claude/settings.json`)).status, 403);
+});
+
+test('CHAT_TOKEN gates /api/file and /api/search like /api/chat', async () => {
+  process.env.CHAT_TOKEN = 'secret123';
+  try {
+    assert.equal((await fetch(`${base}/api/file?path=CLAUDE.md`)).status, 401);
+    assert.equal((await fetch(`${base}/api/file?path=CLAUDE.md`, { headers: { 'x-chat-token': 'secret123' } })).status, 200);
+    assert.equal((await fetch(`${base}/api/search?q=Knowledge`)).status, 401);
+    assert.equal((await fetch(`${base}/api/search?q=Knowledge`, { headers: { 'x-chat-token': 'secret123' } })).status, 200);
+  } finally {
+    delete process.env.CHAT_TOKEN;
+  }
 });
 
 // 빈 임시 루트로 서버를 띄워, 파일이 없는 상태의 응답을 검사한다.

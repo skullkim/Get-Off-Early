@@ -119,6 +119,19 @@ function readBody(req) {
   });
 }
 
+// 조회 API 공통 게이트: CHAT_TOKEN이 설정돼 있으면 파일·검색도 같은 토큰을
+// 요구한다 — 터널 노출 시 채팅만 잠기고 레포 열람은 열려 있던 비대칭 제거.
+function tokenOk(req) {
+  const t = process.env.CHAT_TOKEN;
+  return !t || req.headers['x-chat-token'] === t;
+}
+
+// dot 세그먼트(.git·.claude·.env …)는 토큰과 무관하게 웹으로 서빙하지 않는다 —
+// safeResolve는 루트 이탈만 막고, 루트 안의 민감 경로는 이 목록이 막는다.
+export function isDeniedPath(rel) {
+  return String(rel).split('/').some((seg) => seg.startsWith('.'));
+}
+
 // Each chat request spawns a `claude` process for up to 120s. Unbounded
 // concurrency can exhaust the machine and the subscription quota, so admit
 // at most `max` chats at once (CHAT_MAX_CONCURRENT env, default 2).
@@ -144,11 +157,15 @@ export function handleRequest(root, {
     const url = new URL(req.url, 'http://localhost');
     if (url.pathname === '/api/index') return sendJson(res, 200, buildIndex(root));
     if (url.pathname === '/api/file') {
-      const abs = safeResolve(root, url.searchParams.get('path') || '');
+      if (!tokenOk(req)) return sendText(res, 401, 'Unauthorized');
+      const rel = url.searchParams.get('path') || '';
+      if (isDeniedPath(rel)) return sendText(res, 403, 'Forbidden');
+      const abs = safeResolve(root, rel);
       if (!abs || !fs.existsSync(abs) || !fs.statSync(abs).isFile()) return sendText(res, 403, 'Forbidden');
       return sendFile(res, abs);
     }
     if (url.pathname === '/api/search') {
+      if (!tokenOk(req)) return sendText(res, 401, 'Unauthorized');
       return sendJson(res, 200, runSearch(root, url.searchParams.get('q') || ''));
     }
     if (url.pathname === '/api/suggestions') return sendJson(res, 200, readSuggestions(root));

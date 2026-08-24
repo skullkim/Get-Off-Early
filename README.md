@@ -65,7 +65,8 @@ setup.sh       멱등 세팅
 
 - **필수:** Node.js, git
 - **선택:** `rg`(없으면 JS 폴백 검색), `claude` CLI(지식 채팅·카드 ingest용)
-- 시크릿은 환경변수로: `CHAT_TOKEN`(채팅 게이트), `CHAT_MODEL`(채팅 기본 모델). 커밋하지 마세요.
+- 시크릿은 환경변수로: `CHAT_TOKEN`, `CHAT_MODEL`(채팅 기본 모델). 커밋하지 마세요.
+- `CHAT_TOKEN`을 설정하면 **채팅·파일 열람·검색 API 전부** 같은 토큰을 요구합니다 (UI가 401 시 토큰을 물어봄). dot 경로(`.git`·`.claude` 등)는 토큰과 무관하게 웹으로 서빙되지 않고, 마크다운 렌더는 DOMPurify로 새니타이즈됩니다.
 - 채팅 운영 env(선택): `CHAT_MAX_CONCURRENT`(동시 채팅 상한, 기본 2 — 초과 시 429), `CHAT_MODEL_SONNET`/`CHAT_MODEL_OPUS`(allowlist 모델 id 교체 — 모델 세대 교체 시 코드 수정 불필요).
 
 ## 하네스 동작 원리
