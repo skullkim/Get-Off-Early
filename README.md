@@ -35,6 +35,11 @@ setup.sh       멱등 세팅
 
 **교훈의 분야 축**: `knowledge/patterns/*.md`는 프로젝트 이름을 지운 일반 교훈이고, frontmatter에 `domain`(**backend · frontend · qa · process · infra**)과 `sources`(출처 프로젝트)를 답니다. `INDEX.md`가 이를 분야별로 그룹핑하므로, 각 역할은 `recall-knowledge` 스킬의 **역할 → 분야 라우팅 표**대로 자기 분야 교훈만 읽고 구현에 들어갑니다.
 
+## 참고 자료
+
+- [`docs/ai-agents-notes.html`](docs/ai-agents-notes.html) — O'Reilly **"Building Applications with AI Agents"**(Michael Albada, 2025) 전 13장 요약 노트(장 탭 전환). 2026-08의 채팅 회복력·평가·CI·보안 등 개선(CLAUDE.md 변경 이력이 "AI 에이전트 책 N장"으로 참조하는 그 출처)이 이 노트에서 나왔습니다. 브라우저로 파일을 바로 열면 됩니다.
+- [`docs/adr/`](docs/adr/) — 시니어가 구현 착수 전 남기는 아키텍처 결정 기록(빌드가 생성).
+
 ## 옵션
 
 ```bash
