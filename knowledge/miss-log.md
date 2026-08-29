@@ -1,0 +1,3 @@
+- 2026-08-24 [frontend-senior/code-navigator] 질의: "코드 뷰어 구문 강조 라이브러리 선택(Shiki vs highlight.js vs CodeMirror) prior-art" — INDEX에 없음 (프론트 패턴은 CORS·E2E뿐). 이번 ADR로 결정 후 승격 후보.
+- 2026-08-24 [frontend-senior/code-navigator] 질의: "대형 파일 리스트 가상화(react-virtual/react-window) prior-art" — 없음. 이번 빌드 결과로 패턴 승격 후보.
+- 2026-08-24 [backend-senior/code-navigator] 질의: "심볼 인덱싱·tree-sitter·파일 워처·코드 검색 도구 prior-art" → INDEX에 해당 분야 패턴/카드 없음(웹 스택 빌드 위주). 이번 빌드 종료 시 승격 후보: web-tree-sitter WASM 선택 근거·ripgrep 위임 패턴·인메모리 파생 인덱스.
