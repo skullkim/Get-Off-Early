@@ -6,7 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   classifyFile, extractReqIds, extractHeaders, parseCard,
-  buildIndex, renderJson, renderMarkdown, findProjects,
+  buildIndex, renderJson, renderMarkdown, findProjects, buildProject,
   extractLinks, buildPatterns,
   DOMAINS, normalizeDomains, extractSummary, groupPatternsByDomain,
 } from '../index-core.mjs';
@@ -91,6 +91,29 @@ test('findProjects: 카드만 있고 _workspace 없는 외부 프로젝트도 �
   fs.mkdirSync(path.join(root, 'knowledge', 'cards'), { recursive: true });
   fs.writeFileSync(path.join(root, 'knowledge', 'cards', 'ext-proj.md'), '---\nproject: ext-proj\n---\n');
   assert.equal(findProjects(root).includes('ext-proj'), true);
+});
+
+// 실제 빌드는 전부 형제 레포(../code-navigator-mac 등)에서 일어난다 — 하네스 루트 밑에
+// 그 디렉터리는 존재하지 않는다. 카드가 디렉터리 존재에 묶여 있으면 카드 전체가 색인에서 사라진다.
+test('findProjects: 디렉터리가 없어도 카드가 있으면 인식 (외부 레포 프로젝트)', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'fp3-'));
+  fs.mkdirSync(path.join(root, 'knowledge', 'cards'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'knowledge', 'cards', 'sibling-repo.md'), '---\nproject: sibling-repo\ntitle: 형제 레포\n---\n');
+  assert.equal(findProjects(root).includes('sibling-repo'), true);
+});
+
+test('buildProject: 디렉터리 없는 카드 프로젝트는 산출물 0으로 빌드된다', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bp-'));
+  fs.mkdirSync(path.join(root, 'knowledge', 'cards'), { recursive: true });
+  fs.writeFileSync(
+    path.join(root, 'knowledge', 'cards', 'sibling-repo.md'),
+    '---\nproject: sibling-repo\ntitle: 형제 레포\nstatus: DONE\n---\n\n## 핵심 결정\n- 결정 하나\n',
+  );
+  const p = buildProject(root, 'sibling-repo');
+  assert.deepEqual(p.artifacts, []);
+  assert.equal(p.title, '형제 레포');
+  assert.equal(p.card, 'knowledge/cards/sibling-repo.md');
+  assert.deepEqual(p.highlights, ['결정 하나']);
 });
 
 test('findProjects: 카드도 _workspace도 없는 디렉터리는 제외', () => {

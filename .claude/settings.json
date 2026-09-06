@@ -5,5 +5,18 @@
       "Bash(git --version)",
       "Bash(node knowledge/generate.mjs)"
     ]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /Users/skull/Documents/repo/Get-Off-Early/.claude/hooks/resume-unfinished-build.sh",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
   }
 }

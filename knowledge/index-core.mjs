@@ -149,14 +149,17 @@ export function findProjects(root) {
   const carded = fs.existsSync(cardsDir)
     ? fs.readdirSync(cardsDir).filter((f) => f.endsWith('.md') && f !== 'index.md').map((f) => f.replace(/\.md$/, ''))
     : [];
-  const isProject = (name) =>
-    fs.existsSync(path.join(root, name, '_workspace')) ||                 // 하네스 산출
-    (carded.includes(name) && fs.existsSync(path.join(root, name)));       // 카드 보유 외부
-  return [...new Set(dirs.filter(isProject))].sort();
+  const withWorkspace = dirs.filter((name) => fs.existsSync(path.join(root, name, '_workspace')));
+
+  // 카드는 디렉터리 존재와 무관하게 프로젝트다. 실제 빌드는 전부 형제 레포에서 일어나고
+  // 하네스 루트 밑에 그 디렉터리는 없다 — 존재를 요구하면 카드 전체가 색인에서 사라진다.
+  return [...new Set([...withWorkspace, ...carded])].sort();
 }
 
 export function buildProject(root, id) {
-  const files = walk(path.join(root, id), root, []).sort();
+  const dir = path.join(root, id);
+  // 카드만 있고 디렉터리가 없는 외부 레포 프로젝트 — 산출물 0으로 빌드한다
+  const files = fs.existsSync(dir) ? walk(dir, root, []).sort() : [];
   const artifacts = files.map((rel) => {
     const abs = path.join(root, rel);
     const st = fs.statSync(abs);
