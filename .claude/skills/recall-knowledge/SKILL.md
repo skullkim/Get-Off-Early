@@ -11,10 +11,10 @@ get-off-early 는 빌드를 거듭하며 `knowledge/` 에 지식 베이스를 �
 
 1. **최신화 후 읽기**: `node knowledge/generate.mjs` 를 한 번 실행한다(수십 ms). 그다음 `knowledge/INDEX.md` 를 `Read`(파일 IO) 한다. 이 한 파일에 **분야별 재사용 패턴 목록**(맨 위) + 프로젝트별 스택·핵심 결정/Gotcha·관련 패턴 링크·산출물 카탈로그가 들어 있다.
 2. **재사용 패턴 먼저**: INDEX.md 최상단 `재사용 패턴 (patterns/)` 섹션이 교차 프로젝트로 검증된 결정·함정의 distill이다 — 여기서 해당하는 패턴(`knowledge/patterns/*.md`)을 먼저 펼친다. 패턴 본문은 **프로젝트 무관하게 일반화**돼 있고, 출처는 frontmatter `sources`(→ `knowledge/cards/<프로젝트>.md`)에 남는다. 카드 → 패턴 마크다운 링크가 그래프를 이룬다.
-3. **역할별 분야 필터 (구현 착수 전 필수)**: 각 역할은 **자기 분야(domain)의 패턴을 먼저 읽는다**. INDEX.md 패턴 섹션의 `### <분야>` 그룹을 보거나, `Grep`(파일 검색)으로 `knowledge/patterns/*.md` 의 frontmatter `domain:` 을 필터한다. 어떤 역할이 어떤 분야를 읽는지는 아래 **역할 → 분야 라우팅** 표가 단일 소스다.
-4. **관련 프로젝트 식별 + 드릴다운**: 도메인/스택이 겹치는 과거 프로젝트를 요약·태그·highlights·관련 패턴 링크로 고르고, 필요한 원본만 `Read`(파일 IO) 한다. 예: 결제·정산 → `shop/_workspace/02b_seller_design.md`, CORS·인증 → 해당 프로젝트 `03_backend_architecture.md`. 리터럴 용어는 `Grep`(파일 검색) 으로 전 프로젝트 본문 검색.
+3. **역할별 분야 필터 (구현 착수 전 필수)**: 각 역할은 **자기 분야(domain)의 패턴을 먼저 읽는다**. INDEX.md 패턴 섹션의 `### <분야>` 그룹을 보거나, 파일 검색(`Bash` 의 `rg`)으로 `knowledge/patterns/*.md` 의 frontmatter `domain:` 을 필터한다. 어떤 역할이 어떤 분야를 읽는지는 아래 **역할 → 분야 라우팅** 표가 단일 소스다.
+4. **관련 프로젝트 식별 + 드릴다운**: 도메인/스택이 겹치는 과거 프로젝트를 요약·태그·highlights·관련 패턴 링크로 고르고, 필요한 원본만 `Read`(파일 IO) 한다. 예: 결제·정산 → `shop/_workspace/02b_seller_design.md`, CORS·인증 → 해당 프로젝트 `03_backend_architecture.md`. 리터럴 용어는 파일 검색(`rg``(파일 검색) 으로 전 프로젝트 본문 검색.
 5. **재사용/회피**: 채택할 패턴과 과거 Gotcha(반복 버그)를 결정에 명시 반영한다. 새 패턴을 발견하면 회고 때 `knowledge/patterns/` 에 개념 문서로 추가한다 — 이때 frontmatter에 `domain:`(분야)과 `sources:`(출처 프로젝트)를 반드시 적는다. 본문에는 프로젝트 이름을 쓰지 않는다(출처는 frontmatter가 단일 소스).
-6. **검색 실패 로그(miss-log)**: INDEX·패턴·카드·Grep에서 **답을 찾지 못한 질의**는 `knowledge/miss-log.md` 에 한 줄 append 한다(`- YYYY-MM-DD [프로젝트/맥락] 질의 — 무엇이 없었나`). 히트 0이 반복되는 질문이 곧 다음에 쓸 지식 문서다 — 회고(retrospective)가 이 로그를 읽어 카드/패턴 후보를 감이 아니라 수요 기반으로 정한다.
+6. **검색 실패 로그(miss-log)**: INDEX·패턴·카드·파일 검색에서 **답을 찾지 못한 질의**는 `knowledge/miss-log.md` 에 한 줄 append 한다(`- YYYY-MM-DD [프로젝트/맥락] 질의 — 무엇이 없었나`). 히트 0이 반복되는 질문이 곧 다음에 쓸 지식 문서다 — 회고(retrospective)가 이 로그를 읽어 카드/패턴 후보를 감이 아니라 수요 기반으로 정한다.
 
 ## 역할 → 분야 라우팅 (단일 소스)
 
