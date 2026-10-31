@@ -10,6 +10,9 @@
 | 발동 | "이 버그 고쳐줘" | tdd-implementation (실패 테스트 먼저) |
 | 비발동 | "README 오타 고쳐줘" | 스킬 없음 — 코드 아님 |
 | 경계 | "테스트가 다 통과하는데 동작이 이상해" | qa-verification — 테스트를 *쓰는* 것이 여기, 그린인데 죽은 것을 *찾는* 것이 QA |
+| 경계 | "이 테스트가 혼자선 통과하는데 풀스위트에선 깨져" | tdd-implementation — **테스트 자체의 결함**(F.I.R.S.T. 의 Independent/Repeatable 위반)이므로 구현 쪽이다. 본문 F.I.R.S.T. 블록 + 비동기 격리 절 |
+| 경계 | "import를 와일드카드로 바꿔도 돼? 책에 그러라는데" | tdd-implementation — **기각된 규칙이다.** `references/clean-code-rules.md` §B가 사유와 함께 막는다. 이 행이 있는 이유는 다음 에이전트가 책을 근거로 우리 규칙을 되돌리는 걸 막는 것이다 |
+| 경계 | "여기 락을 어디에 걸어야 해?" | tdd-implementation — 동시성 규칙은 `references/clean-code-rules.md` CC-6(서버 락 권장 · 순환대기 깨기). 설계 단위의 복원력 패턴(Retry/Timeout)은 architecture-and-delegation |
 
 ## 왜 경계 사례가 핵심인가
 

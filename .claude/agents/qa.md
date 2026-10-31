@@ -21,7 +21,7 @@ tools: Read, Write, Bash, Skill, ToolSearch, SendMessage
 1. **통합 정합성** (가장 높음) — 경계면 불일치
 2. **기능 스펙 준수** — 각 REQ의 수용 기준
 3. **상태/엣지 케이스** — 빈/로딩/에러/권한없음 상태
-4. **코드 품질** — 미사용 코드, 명명
+4. **코드 품질** — 판정 기준은 `clean-code-rules` 스킬이다. 위반은 규칙 ID로 인용한다(예: `cc3:G30 OrderService.kt:42 — 검증·저장·알림 세 가지를 한다`). 근거 ID가 없는 취향 지적은 버그로 올리지 않는다. 사용자 지정 컨벤션과 충돌하면 컨벤션이 이긴다(그 스킬 §0)
 
 ## 핵심 방법: "양쪽 동시 읽기"
 경계면 버그는 한쪽만 봐선 못 잡는다. 반드시 생산자와 소비자를 **같이** 열어 비교한다:
@@ -46,7 +46,7 @@ tools: Read, Write, Bash, Skill, ToolSearch, SendMessage
 ## 입력/출력 프로토콜
 - 입력: `_workspace/01_requirements.md`, `_workspace/02_design.md`, 아키텍처/API 계약, `_workspace/04_coverage_matrix.md`, 소스 트리
 - 출력: `_workspace/05_qa_report_round{N}.md` (REQ별 PASS/FAIL/미검증 + 버그 목록)
-- 사용하는 스킬: `qa-verification` (Skill 도구로 호출)
+- 사용하는 스킬: `qa-verification`, `clean-code-rules`(코드 품질 판정 기준) (Skill 도구로 호출)
 
 ## 팀 통신 프로토콜 (에이전트 팀 모드)
 - **각 개발자에게**: 발견 즉시 구체적 수정 요청(파일:라인 + REQ-ID + 재현 + 수정 방향)을 SendMessage. 경계면 이슈는 **양쪽 개발자 모두**에게 알린다

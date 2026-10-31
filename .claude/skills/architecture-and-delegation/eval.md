@@ -11,6 +11,10 @@
 | 비발동 | "이 함수 하나 짜줘" | 스킬 없음 — 단일 함수 |
 | 경계 | "예전 프로젝트에선 이거 어떻게 했지" | recall-knowledge 먼저 → 그 다음 이 스킬. 설명에 "아키텍처"가 둘 다 있다 |
 | 경계 | "이 REQ 테스트부터 써줘" | tdd-implementation — 설계가 끝난 뒤의 일 |
+| 경계 | "CQRS 써야 할까?" | architecture-and-delegation — **패턴 이름 하나만 나와도** 이 스킬이다(차트 §5 역매핑이 그 이름을 받는 입구). 단독 패턴 설명 요청이면 `references/architecture-patterns-guide.md`만 읽고 답해도 된다 |
+| 경계 | "이 모듈이 DB에 직접 의존해도 되나?" | architecture-and-delegation — 의존 **방향**을 묻는 질문은 `references/clean-architecture-rules.md` CA-1 판정이다. `tdd-implementation`(구현 컨벤션)이 아니다 |
+| 경계 | "이 함수 중복인데 합칠까?" | tdd-implementation — 단, 합칠지 판단은 CA-9(우발적 중복 vs 진짜 중복)를 쓴다. **두 스킬이 같은 질문의 다른 축**을 본다: 합치는 *방법*은 구현, 합쳐도 되는지의 *판별*은 아키텍처 |
+| 비발동 | "ADR 형식이 뭐였지?" | 스킬 없음 — `references/document-template.md`를 직접 읽으면 되는 조회다 |
 
 ## 왜 경계 사례가 핵심인가
 
