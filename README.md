@@ -17,6 +17,11 @@ node knowledge/web/server.mjs    # 지식 웹앱 (기본 http://localhost:4178)
 
 하네스 사용: Claude Code에서 `"이거 만들어줘"` / `"프로젝트 개발해줘"` → `build-project` 스킬이 가상 팀을 가동합니다.
 
+**새 기계라면 `./setup.sh` 뒤에 Claude Code를 한 번 재시작하세요.** 훅은 즉시 반영되지만
+에이전트 권한(`tools`)은 **새 세션에서만** 적용됩니다(실측). 재시작 후
+`.claude/harness-runtime.md` 의 재측정 절차를 한 번 돌려 도구 목록을 확인하세요 — 런타임이
+바뀌면 없는 도구를 지시하게 되고, 그 실패는 아무 메시지도 내지 않습니다.
+
 ## 구성
 
 ```
@@ -45,6 +50,7 @@ setup.sh       멱등 세팅
 ```bash
 ./setup.sh --with-plugins   # 권장 플러그인 설치 (harness, superpowers) — 없어도 하네스는 동작
 ./setup.sh --ingest         # 카드 없는(외부) 프로젝트의 지식 카드 생성 (claude 필요, 토큰 소비)
+./setup.sh --self-test      # 훅 검사기가 깨진 설정을 실제로 잡는지 확인
 ```
 
 ## 내 프로젝트 연결 (projects.json)
@@ -70,6 +76,7 @@ setup.sh       멱등 세팅
 
 - **필수:** Node.js, git
 - **선택:** `rg`(없으면 JS 폴백 검색), `claude` CLI(지식 채팅·카드 ingest용)
+- `rg` 는 **셸이 아니라 Node 로** 확인합니다. `command -v rg` 는 셸 함수·별칭에도 반응해서, `knowledge/` 가 `spawn('rg')` 할 때 ENOENT 로 터지는 환경을 통과시킵니다(이 레포에서 실제로 겪었고, `setup.sh` 1단계가 Node 로 다시 잽니다).
 - 시크릿은 환경변수로: `CHAT_TOKEN`, `CHAT_MODEL`(채팅 기본 모델). 커밋하지 마세요.
 - `CHAT_TOKEN`을 설정하면 **채팅·파일 열람·검색 API 전부** 같은 토큰을 요구합니다 (UI가 401 시 토큰을 물어봄). dot 경로(`.git`·`.claude` 등)는 토큰과 무관하게 웹으로 서빙되지 않고, 마크다운 렌더는 DOMPurify로 새니타이즈됩니다.
 - 채팅 운영 env(선택): `CHAT_MAX_CONCURRENT`(동시 채팅 상한, 기본 2 — 초과 시 429), `CHAT_MODEL_SONNET`/`CHAT_MODEL_OPUS`(allowlist 모델 id 교체 — 모델 세대 교체 시 코드 수정 불필요).
@@ -80,6 +87,10 @@ setup.sh       멱등 세팅
 - 개발은 무조건 요구사항(REQ-ID) 기반 **TDD** — 실패 테스트 먼저. 모든 in-scope REQ가 테스트 100% 커버 + 전체 통과해야 QA로 인계.
 - QA는 **백엔드↔프론트 경계면 교차 검증** + 실제 브라우저 E2E를 최우선으로 검증.
 - 매 빌드 후 **회고 루프**가 대화·산출물에서 신호를 캐내 하네스 자체를 개선합니다.
+- **훅 두 개가 하네스를 기본값으로 만듭니다** (`.claude/settings.json`, 경로는 `$CLAUDE_PROJECT_DIR` 기준이라 기계에 안 묶임):
+  - `UserPromptSubmit` → `harness-trigger.sh`: 빌드·후속 작업 신호가 보이면 매 프롬프트마다 트리거 규칙을 주입합니다. `CLAUDE.md` 의 문장은 세션당 한 번 읽히고 대화가 길어지면 뒤로 밀립니다 — 자동 동작은 판단이 아니라 훅이 일으켜야 합니다. 단발 질문·한 줄 수정에는 주입하지 않습니다.
+  - `SessionStart` → `resume-unfinished-build.sh`: 미완 런북(`RESUME_*.md`)이 있으면 새 세션에 알립니다. 보는 자리는 하네스 `_workspace`, `<레포>/<프로젝트>/_workspace`, 그리고 `.claude/hooks/watch-workspaces.local`(기계별, git 제외 — 형제 디렉터리 프로젝트는 여기에 한 줄씩).
+  - 둘 다 `./setup.sh` 5단계(`verify-hooks.sh`)가 **양방향으로** 검증합니다 — 주입해야 할 입력에 주입하는지, 주입하면 안 될 입력에 조용한지. 검사기 자신도 `--self-test` 로 깨진 설정 네 종류를 심어 보고 잡는지 확인합니다.
 
 ## 테스트
 

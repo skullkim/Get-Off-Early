@@ -12,8 +12,19 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash /Users/skull/Documents/repo/Get-Off-Early/.claude/hooks/resume-unfinished-build.sh",
+            "command": "bash \"${CLAUDE_PROJECT_DIR:-.}\"/.claude/hooks/resume-unfinished-build.sh",
             "timeout": 10
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PROJECT_DIR:-.}\"/.claude/hooks/harness-trigger.sh",
+            "timeout": 5
           }
         ]
       }
