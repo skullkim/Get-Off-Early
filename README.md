@@ -17,10 +17,54 @@ node knowledge/web/server.mjs    # 지식 웹앱 (기본 http://localhost:4178)
 
 하네스 사용: Claude Code에서 `"이거 만들어줘"` / `"프로젝트 개발해줘"` → `build-project` 스킬이 가상 팀을 가동합니다.
 
-**새 기계라면 `./setup.sh` 뒤에 Claude Code를 한 번 재시작하세요.** 훅은 즉시 반영되지만
-에이전트 권한(`tools`)은 **새 세션에서만** 적용됩니다(실측). 재시작 후
-`.claude/harness-runtime.md` 의 재측정 절차를 한 번 돌려 도구 목록을 확인하세요 — 런타임이
-바뀌면 없는 도구를 지시하게 되고, 그 실패는 아무 메시지도 내지 않습니다.
+## 설치 (새 기계)
+
+```bash
+git clone https://github.com/skullkim/Get-Off-Early && cd Get-Off-Early
+./setup.sh --with-plugins       # 의존성 → clone → 색인 → 테스트 → 훅 검증
+./setup.sh --self-test          # (선택) 훅 검사기가 깨진 설정을 잡는지 확인
+```
+
+그다음 **Claude Code를 한 번 재시작**합니다. 훅은 즉시 반영되지만 에이전트 권한(`tools`)은
+새 세션에서만 적용됩니다(아래 표). 재시작한 세션에서 한 번:
+
+> `.claude/harness-runtime.md` 의 **재측정 절차**를 돌려 역할 → 도구 매핑을 확인하세요.
+> 런타임이 바뀌면 하네스가 없는 도구를 지시하게 되고, **그 실패는 아무 메시지도 내지 않습니다**
+> (실제로 `TaskCreate` 계열이 사라진 뒤 7곳이 작동 불가 상태로 남아 있었습니다).
+
+### 기계마다 직접 두는 것 (git 제외)
+
+| 파일 / env | 필요할 때 | 내용 |
+|---|---|---|
+| `.claude/hooks/watch-workspaces.local` | 레포 **밖**(형제 디렉터리 등) 프로젝트의 재개 런북도 보려면 | `_workspace` 경로를 한 줄씩. `~` 와 상대 경로 허용 |
+| `.claude/settings.local.json` | 개인 권한 추가 | `{"permissions":{"allow":[...]}}` |
+| `CHAT_TOKEN` · `CHAT_MODEL` env | 지식 웹앱을 외부에 띄울 때 | 「의존성」 참고. 커밋 금지 |
+| `projects.json` | 포크해서 쓸 때 | `projects.example.json` 참고해 목록 교체 |
+
+`knowledge/INDEX.md`·`index.json`·`.claude/scheduled_tasks.lock` 은 **생성물**이라 건드리지 않습니다.
+
+## 갱신 (이미 설치된 기계)
+
+```bash
+git pull
+./setup.sh                      # 멱등 — 다시 돌려도 안전하다
+```
+
+`setup.sh` 는 의존성 재측정 → 새 프로젝트만 clone → 색인 재생성 → 테스트 → **훅 재검증**까지
+합니다. 훅만 바뀐 갱신이면 재시작 없이 끝납니다. 그 외에는 아래 「무엇을 바꾸면 언제 반영되는가」를 보세요.
+
+### 무엇을 바꾸면 언제 반영되는가
+
+**단일 소스: [`.claude/harness-runtime.md`](.claude/harness-runtime.md) 의 「반영 시점」 표.**
+요약하면 — 훅과 스킬 본문은 즉시, **에이전트 정의(`tools`·`effort`)와 `CLAUDE.md` 는 새 세션**입니다.
+
+갱신 후 확인만 하고 싶으면 setup 전체를 돌리지 않아도 됩니다:
+
+```bash
+bash .claude/hooks/verify-hooks.sh              # 훅이 이 기계에서 실제로 도는지 (양방향)
+node knowledge/generate.mjs                     # 색인만 재생성
+node --test "knowledge/test/**/*.test.mjs" "scripts/test/**/*.test.mjs"
+```
 
 ## 구성
 
